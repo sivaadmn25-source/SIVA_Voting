@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/static/manifest.json">  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Select Language</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f7fa;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding-top: 80px; 
+    box-sizing: border-box;
+  }
+
+  .ribbon {
+    width: 100%;
+    max-width: 600px;
+    height: 70px;
+    background: linear-gradient(to bottom, #FF9933 33.33%, #FFFFFF 66.66%, #4e5eef 100%);
+  /*  background: linear-gradient(to bottom, #FF9933 33.33%, #FFFFFF 66.66%, #138808 100%);  */
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+/* .chakra {
+      width: 40px;
+      height: 40px;
+      animation: spinChakra 10s linear infinite;
+      transform-origin: 50% 50%;
+    }
+
+    @keyframes spinChakra {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }   */
+
+  /* S.I.V.A text with gold + deep radiant blue animation */
+  .ribbon h1 { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-size: 2rem;
+    font-weight: 800;
+    
+    /* Gradient colors remain */
+      background: linear-gradient(to bottom, #FF9933 33.33%, #FFFFFF 66.66%, #138808 100%);
+
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: #0000FF;
+
+    letter-spacing: 2px;
+  }
+
+  /* Keyframes unchanged */
+  @keyframes shinyGoldBlueShift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+
+  @keyframes radiantShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+
+  .vote-info {
+    width: 100%;
+    max-width: 600px;
+    text-align: center;
+    margin-bottom: 2px;
+  }
+
+  .vote-info p {
+    color: #d32f2f;
+    font-size: 1.5rem;
+    font-weight: 700;
+    padding: 12px 0;
+    border-bottom: 2px solid #f5c6cb;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+  }
+.select-language-text {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.vote-image {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+
+/* Grid settings for the buttons */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* Buttons resize, use minmax to control */
+  gap: 3px; /* Make the gap between buttons smaller */
+  width: fit-content; /* Ensure the grid only takes the space required by buttons */
+  margin: 0 auto; /* Center the grid within the container */
+}
+
+
+
+/* Button styling */
+form button {
+  padding: 4px 6px !important; /* Make the buttons smaller */
+  font-size: 1.1rem !important; /* Reduce font size further */
+  width: auto;  /* Allow button width to fit content */
+  text-align: center;
+  min-width: 50px;  /* Optional: set a minimum width for readability */
+}
+
+/* Ensures responsiveness for smaller screens */
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); /* Make the buttons smaller on smaller screens */
+  }
+
+  form button {
+    padding: 4px 8px !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* Flash message styling */
+  .flashes {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 15px;
+  }
+
+  .flashes li {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .error {
+    background-color: #fcebeb;
+    color: #db2777;
+    border: 1px solid #f9a8d4;
+  }
+
+  .success {
+    background-color: #ecfdf5;
+    color: #10b981;
+    border: 1px solid #a7f3d0;
+  }
+
+  .global-overlay-message {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #333;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    z-index: 1000;
+  }
+
+  @media (max-width: 640px) {
+    .ribbon { height: 60px; top: 5px; }
+    .ribbon h1 { font-size: 1.5rem; }
+    body { padding-top: 100px; }
+    .container { padding: 20px; }
+  }
+}
+
+.container {
+    /* Set dimensions for the content area */
+    width: 90%;
+    max-width: 500px;
+    
+    /* CRITICAL FIX: Pushes the content area up, clearing the fixed footer */
+    margin-bottom: 70px; 
+}
+  
+  .ribbon .siva-text {
+    font-weight: 800;
+    font-size: 2.2rem;
+    line-height: 1;
+    background: linear-gradient(270deg, gold, orange, yellow, green, blue, indigo, violet, gold);
+    background-size: 400% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: rainbow 5s linear infinite, flash 1s step-start infinite;
+  }
+
+  @keyframes rainbow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+    /* Make buttons smaller and closer together */
+
+</style>
+
+</head>
+<body>
+
+  <div class="ribbon">
+    <h1>
+    <!--         <svg class="chakra" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="48" stroke="#0000FF" stroke-width="4" fill="none"/>
+          <g stroke="#0000FF" stroke-width="2">
+            <g transform="translate(50,50)">
+              <circle r="3" fill="#0000FF"/>
+              <defs>
+                <line id="spoke" y1="3" y2="-47"/>
+              </defs>
+              {% for i in range(0, 360, 15) %}
+                <use href="#spoke" transform="rotate({{ i }})"/>
+              {% endfor %}
+            </g>
+          </g>
+        </svg>  -->
+  
+    Welcome To <span class="siva-text">SIVA</span>
+    </h1>
+  </div>
+
+  <div class="vote-info">
+    <p>Your vote is your Right and your Responsibility</p>
+  </div>
+
+    <div class="select-language-text">
+    <h2 class="text-2xl font-bold text-gray-800">Select Your Preferred Language & </h2>
+    <img src="/static/images/Ballot.png" alt="Voting Image" class="vote-image" />
+    </div>
+
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flashes">
+          {% for category, msg in messages %}
+            <li class="{{ category }}">{{ msg }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('select_language') }}" autocomplete="off">
+      <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 gap-3 mt-4">
+
+        {% if languages.get('en') %}
+          {% set lang_data = languages['en'] %}
+          <button type="submit" name="lang" value="en"
+            class="px-4 py-3 border-2 border-blue-600 text-blue-600 font-bold rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm text-sm sm:text-base md:text-xl lg:text-2xl">
+            {{ lang_data.native if lang_data.native else 'EN' }}
+          </button>
+        {% endif %}
+
+        {% if languages.get('kn') %}
+          {% set lang_data = languages['kn'] %}
+          <button type="submit" name="lang" value="kn"
+            class="px-4 py-3 border-2 border-blue-600 text-blue-600 font-bold rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm text-sm sm:text-base md:text-xl lg:text-2xl">
+            {{ lang_data.native if lang_data.native else 'KN' }}
+          </button>
+        {% endif %}
+
+        {% for key, value in languages|dictsort %}
+          {% if key not in ['en', 'kn'] %}
+            <button type="submit" name="lang" value="{{ key }}"
+              class="px-4 py-3 border-2 border-blue-600 text-blue-600 font-bold rounded-lg hover:bg-blue-600 hover:text-white transition-all duration-200 shadow-sm text-sm sm:text-base md:text-xl lg:text-2xl">
+              {{ value.native if value.native else key|upper }}
+            </button>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </form>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Disable back navigation
+      history.pushState(null, null, location.href);
+      window.addEventListener('popstate', function() {
+        history.pushState(null, null, location.href);
+      });
+      window.addEventListener('pageshow', function(event) {
+        if (event.persisted) location.reload();
+      });
+
+      // Disable right-click & dev tools
+    document.addEventListener('contextmenu', e => e.preventDefault());
+      document.addEventListener('keydown', e => {
+        if (
+          e.key === "F12" ||
+          (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(e.key.toUpperCase())) ||
+          (e.ctrlKey && e.key.toUpperCase() === "U")
+        ) e.preventDefault();
+      });
+    });
+  </script>
+ 
+  <!-- Footer with email contact -->
+  <footer class="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-lg text-gray-500 select-none pointer-events-auto z-50">
+    D3 by: 
+    <a href="mailto:siva.admn25@gmail.com" style="color: #0000FF;" class="underline hover:text-blue-700">
+      siva.admn25@gmail.com
+    </a>
+  </footer>
+</body>
+</html>
+
