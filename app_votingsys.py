@@ -7,6 +7,7 @@ import base64, io, numpy as np
 from PIL import Image
 #from deepface import DeepFace
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash # ADDED for hashing
 
 # --- Initialization ---
 load_dotenv()
@@ -16,38 +17,39 @@ app.secret_key = os.getenv("FLASK_VOTER_SECRET_KEY", "a_secret_key_for_voter_ses
 IST = pytz.timezone('Asia/Kolkata')
 UTC = pytz.utc
 
-# --- CODE COMPARISON FUNCTION (using direct string compare as requested) ---
-def compare_codes(entered_code, stored_code):
-    """Performs direct string comparison for code validation."""
-    if stored_code is None:
+# --- CODE COMPARISON FUNCTION (using hashing for security) ---
+def compare_codes(entered_code, stored_hash):
+    """Compares entered plain code against a stored hash."""
+    if stored_hash is None:
         return False
-    return entered_code == stored_code
+    # Now uses check_password_hash instead of direct string comparison
+    return check_password_hash(stored_hash, entered_code)
 
 # --- DB helper ---
 #def get_db():
-#    try:
+#   try:
         # Fetch database connection details from environment variables
-#        dbname = os.getenv("DB_DBNAME")
-#        user = os.getenv("DB_USER")
-#        password = os.getenv("DB_PASSWORD")
-#        host = os.getenv("DB_HOST")
-#        port = os.getenv("DB_PORT")
+#       dbname = os.getenv("DB_DBNAME")
+#       user = os.getenv("DB_USER")
+#       password = os.getenv("DB_PASSWORD")
+#       host = os.getenv("DB_HOST")
+#       port = os.getenv("DB_PORT")
         
         # Log the connection details to verify
-#        app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
+#       app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
 #
-#        # Attempt DB connection
-#        return psycopg2.connect(
-#            dbname=dbname,
-#            user=user,
-#            password=password,
-#            host=host,
-#            port=port
-#        )
-#    except Exception as e:
-#        # Log the error if DB connection fails
-#        app.logger.error(f"DB connection error: {e}")
-#        return None
+#       # Attempt DB connection
+#       return psycopg2.connect(
+#           dbname=dbname,
+#           user=user,
+#           password=password,
+#           host=host,
+#           port=port
+#       )
+#   except Exception as e:
+#       # Log the error if DB connection fails
+#       app.logger.error(f"DB connection error: {e}")
+#       return None
 def get_db():
     """Establishes a connection to the PostgreSQL database using .env credentials."""
     try:
@@ -293,17 +295,20 @@ def verify_code():
             
             # Check 1: Mandatory Reset Case (secret_code set, reset_code is NULL)
             if voter_secret_code and voter_reset_code is None:
+                # Uses hashing comparison
                 if compare_codes(entered_code, voter_secret_code):
                     is_reset_required = True
                     is_valid_code = True 
             
             # Check 2: Verification using User-Set Reset Code (reset_code is primary)
             elif voter_reset_code:
+                # Uses hashing comparison
                 if compare_codes(entered_code, voter_reset_code):
                     is_valid_code = True
             
             # Check 3: Fallback to Admin Secret Code (Only if no reset_code and we didn't hit case 1)
             elif voter_secret_code:
+                 # Uses hashing comparison
                  if compare_codes(entered_code, voter_secret_code):
                     is_valid_code = True
             
@@ -427,9 +432,12 @@ def reset_code():
         else:
              return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
         
-        # Update the database: Set the new plain code into 'reset_code'
+        # ⭐ HASH THE NEW CODE BEFORE STORING ⭐
+        hashed_code = generate_password_hash(new_code)
+
+        # Update the database: Set the new HASHED code into 'reset_code'
         update_query = "UPDATE households SET reset_code=%s WHERE " + " AND ".join(where_clauses)
-        update_params = [new_code] + params # New code is stored in plaintext
+        update_params = [hashed_code] + params # Hashed code is stored
         
         cur = conn.cursor()
         cur.execute(update_query, tuple(update_params))
