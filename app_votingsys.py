@@ -24,29 +24,43 @@ def compare_codes(entered_code, stored_code):
     return entered_code == stored_code
 
 # --- DB helper ---
-def get_db():
-    try:
+#def get_db():
+#    try:
         # Fetch database connection details from environment variables
-        dbname = os.getenv("DB_DBNAME")
-        user = os.getenv("DB_USER")
-        password = os.getenv("DB_PASSWORD")
-        host = os.getenv("DB_HOST")
-        port = os.getenv("DB_PORT")
+#        dbname = os.getenv("DB_DBNAME")
+#        user = os.getenv("DB_USER")
+#        password = os.getenv("DB_PASSWORD")
+#        host = os.getenv("DB_HOST")
+#        port = os.getenv("DB_PORT")
         
         # Log the connection details to verify
-        app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
-
-        # Attempt DB connection
-        return psycopg2.connect(
-            dbname=dbname,
-            user=user,
-            password=password,
-            host=host,
-            port=port
+#        app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
+#
+#        # Attempt DB connection
+#        return psycopg2.connect(
+#            dbname=dbname,
+#            user=user,
+#            password=password,
+#            host=host,
+#            port=port
+#        )
+#    except Exception as e:
+#        # Log the error if DB connection fails
+#        app.logger.error(f"DB connection error: {e}")
+#        return None
+def get_db():
+    """Establishes a connection to the PostgreSQL database using .env credentials."""
+    try:
+        conn = psycopg2.connect(
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT")
         )
-    except Exception as e:
-        # Log the error if DB connection fails
-        app.logger.error(f"DB connection error: {e}")
+        return conn
+    except psycopg2.OperationalError as e:
+        app.logger.error(f"Error connecting to PostgreSQL database: {e}")
         return None
     
 # --- Utility: numeric sort ---
