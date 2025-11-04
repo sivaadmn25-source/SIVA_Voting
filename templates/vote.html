@@ -1114,28 +1114,86 @@
         validateFormAndEnableVerify();
     }
 
-    async function startCamera() {
-        if (currentStream) return;
-        try {
-            showGlobalOverlay("{{ languages[selected_language_code]['message_startingCamera'] if selected_language_code and languages[selected_language_code].message_startingCamera else 'Starting camera...' }}");
-            const constraints = { video: { facingMode: "user" } };
-            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = currentStream;
-            await video.play();
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+    async function verifyPhoto() {
+    console.log("verifyPhoto() start");
+    try {
+        if (isVerified) { console.log("Already verified"); return; }
+
+        if (!areDetailsSelected()) { console.warn("Missing details"); alert("Please select all details first (Society, Tower, Floor, etc.)."); return; }
+
+        const photoDataUrl = captureFrame();
+        if (!photoDataUrl) { console.warn("No photo"); alert("No photo captured. Please start the camera first."); return; }
+
+        console.log("Captured photo, sending for verification...");
+        showGlobalOverlay("Verifying face...");
+        verifyPhotoButton.disabled = true;
+
+        let payload = {
+            society: societyInput.value.trim(),
+            image_data: photoDataUrl,
+            mode: document.getElementById('mode_check').checked ? 'check' : 'vote'
+        };
+        if (currentCommunityType === 'apartment') { payload.tower = towerSelect.value; payload.flat = flatIdSelect.value; }
+        else if (currentCommunityType === 'individual_lanes') { payload.lane = laneSelect.value; payload.house = houseNumberSelect.value; }
+        else if (currentCommunityType === 'individual_no_lanes') { payload.flat = flatNoLanesSelect.value; }
+
+        console.log("Payload:", payload);
+
+        const response = await fetch('/api/verify_face', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        console.log("Response status:", response.status);
+
+        const data = await response.json();
+        console.log("Response JSON:", data);
+
+        if (data.success) {
+            console.log("Verification success");
+            isVerified = true;
+            stopCamera();
             hideGlobalOverlay();
-            startCameraButton.disabled = true;
-            stopCameraButton.disabled = false;
-            validateFormAndEnableVerify();
-        } catch (err) {
-            console.error("Error accessing camera:", err);
+
+            const isCheckMode = document.getElementById('mode_check').checked;
+            const timestamp = data.voted_at;
+            const userId = getUserId();
+            console.log("CheckMode:", isCheckMode, "timestamp:", timestamp, "userId:", userId);
+
+            if (isCheckMode) {
+                if (timestamp) { console.log("Vote found", timestamp); alert(`Vote Record Found: ${timestamp}`); }
+                else { console.log("No vote found"); alert("No voting record found."); }
+                return;
+            }
+
+            if (timestamp) {
+                console.log("Already voted -> handleAlreadyVoted");
+                handleAlreadyVoted(userId);
+            } else {
+                console.log("Redirecting to ballot. data.redirect_url =", data.redirect_url);
+                let redirectUrl = data.redirect_url || "/ballot.html";
+                console.log("Final redirect target:", redirectUrl);
+                showGlobalOverlay("Verification Successful. Loading ballot...");
+                try {
+                    window.location.replace(redirectUrl);
+                    console.log("window.location.replace executed");
+                } catch (e) {
+                    console.error("Redirect error:", e);
+                }
+                return;
+            }
+        } else {
+            console.warn("Verification failed:", data.message);
             hideGlobalOverlay();
-            alert("{{ languages[selected_language_code]['alert_errorAccessingCamera'] if selected_language_code and languages[selected_language_code].alert_errorAccessingCamera else 'Could not access camera. Please check browser permissions.' }}");
-            startCameraButton.disabled = false;
-            stopCameraButton.disabled = true;
-            validateFormAndEnableVerify();
+            alert(data.message || "Verification failed.");
         }
+    } catch (error) {
+        console.error("verifyPhoto() error:", error);
+        hideGlobalOverlay();
+        alert("Error during verification. See console.");
+    } finally {
+        if (!isVerified) { console.log("Re-enabling verify button"); verifyPhotoButton.disabled = false; }
+    }
     }
 
     function stopCamera() {
