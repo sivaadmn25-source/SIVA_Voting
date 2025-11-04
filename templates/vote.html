@@ -720,19 +720,19 @@
     const flatNoLanesSelect = document.getElementById('flat_no_lanes');
     const photoVerifyBtn = document.getElementById('photoVerifyBtn'); 
     const secretCodeVerifyBtn = document.getElementById('secretCodeVerifyBtn');
-    // CAMERA/PHOTO ELEMENTS REMOVED FROM USAGE/DECLARATION SCOPE WHERE POSSIBLE
+    // Removed/Commented out photo specific elements as camera is disabled
     // const photoSection = document.getElementById('photo_verification_section'); 
     const secretCodeSection = document.getElementById('secret_code_verification_section');
     // const video = document.getElementById('video');
     // const canvas = document.getElementById('canvas');
     // const context = canvas.getContext('2d');
     // const startCameraButton = document.getElementById('startCameraButton');
-    // const verifyPhotoButton = document.getElementById('verifyPhotoButton'); // Renamed/removed in logic flow
-    // const stopCameraButton = document.getElementById('stopCameraButton'); // Renamed/removed in logic flow
+    // const verifyPhotoButton = document.getElementById('verifyPhotoButton'); 
+    // const stopCameraButton = document.getElementById('stopCameraButton'); 
     const secretCodeInput = document.getElementById('secret_code');
     const submitSecretCodeButton = document.getElementById('submitSecretCodeButton');
     const messageDisplayBox = document.getElementById('message_display_box');
-    const globalOverlayMessage = document.getElementById('globalOverlayMessage');
+    const globalOverlayMessage = document.getElementById('global-overlay-message');
 
     // NEW Variables for Code Reset Dialog
     const resetCodeDialog = document.getElementById('resetCodeDialog');
@@ -741,7 +741,7 @@
     const submitNewCodeButton = document.getElementById('submitNewCodeButton');
     // END NEW Variables
     
-    // let currentStream = null; // Removed as camera is disabled
+    // let currentStream = null; // Removed camera stream variable
     let isVerified = false;
     let currentVerificationMethod = null;
 
@@ -795,8 +795,7 @@
      * while preserving the Society Name input for the next voter.
      */
     function handleAlreadyVoted(voterId) {
-        // *** CAMERA LOGIC REMOVED ***
-        // stopCamera(); 
+        // Camera stop logic removed/bypassed
         
         // Hide the dynamic address and verification fields
         dynamicFormFields.classList.add('hidden-fields');
@@ -846,8 +845,8 @@
         switchVerificationMethod(null); // Hide verification sections
         
         // --- FIX: Disable method buttons ---
-        photoVerifyBtn.disabled = true;
-        secretCodeVerifyBtn.disabled = true;
+        photoVerifyBtn.disabled = true; // Keep photo button disabled (no camera)
+        secretCodeVerifyBtn.disabled = true; // Keep disabled until society is loaded
         // ---------------------------------
         
         validateFormAndEnableVerify(); // Disable submit buttons
@@ -873,16 +872,15 @@
             });
 
             const data = await response.json();
-
-            // --- THIS IS THE CORRECT LOGIC FOR THIS FUNCTION ---
+ 
             if (data.success) {
                 hideGlobalOverlay();
                 dynamicCommunityData = data.community_data;
                 currentCommunityType = data.community_type;
                 
-                // --- FIX: Enable method buttons ---
-                photoVerifyBtn.disabled = true; // Camera disabled, so this remains disabled
-                secretCodeVerifyBtn.disabled = false;
+                // --- FIX: Enable SECRET CODE method button ONLY ---
+                photoVerifyBtn.disabled = true; // Camera is removed
+                secretCodeVerifyBtn.disabled = false; // Enable secret code check
                 // ----------------------------------
                 
                 populateDynamicFields();
@@ -892,8 +890,7 @@
                 alert(data.message);
                 resetDynamicFields();
             }
-            // --- END OF CORRECT LOGIC ---
-
+ 
         } catch (err) {
             console.error("Error fetching society details:", err);
             hideGlobalOverlay();
@@ -1050,16 +1047,15 @@
      */
     function validateFormAndEnableVerify() {
         const idSelected = areDetailsSelected();
-        const secretCodeEntered = secretCodeInput.value.trim().length > 0; // NEW CHECK
+        const secretCodeEntered = secretCodeInput.value.trim().length > 0; 
 
         if (currentVerificationMethod === 'photo') {
-            // *** CAMERA LOGIC MODIFIED/REMOVED ***
-            // verifyPhotoButton.disabled = !idSelected || currentStream === null; 
-            verifyPhotoButton.disabled = true; // Camera is no longer used
+            // Photo method is disabled entirely
+            verifyPhotoButton.disabled = true; 
             submitSecretCodeButton.disabled = true;
         } else if (currentVerificationMethod === 'secret_code') {
-            // Check if details are selected AND a code is entered
-            submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; // MODIFIED LINE
+            // Only enable submit if details are selected AND code is entered
+            submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; 
             verifyPhotoButton.disabled = true;
         } else {
             // No method selected
@@ -1076,12 +1072,10 @@
         secretCodeVerifyBtn.classList.remove('active', 'btn-green');
         secretCodeVerifyBtn.classList.add('btn-secondary');
 
-        // Removed photoSection.classList.remove('active'); // Assuming this is related to camera UI
+        // Removed photoSection.classList.remove('active'); 
         secretCodeSection.classList.remove('active');
         
-        if (!method) { // Call to hide sections
-            // *** CAMERA LOGIC REMOVED ***
-            // stopCamera(); 
+        if (!method) { // Call to hide sections 
             validateFormAndEnableVerify();
             return;
         }
@@ -1089,23 +1083,17 @@
         if (method === 'photo') {
             photoVerifyBtn.classList.add('active', 'btn-green');
             photoVerifyBtn.classList.remove('btn-secondary');
-            // photoSection.classList.add('active'); // Removed as photo section is gone
-            // *** CAMERA LOGIC REMOVED ***
-            // stopCamera(); // Ensure camera is off before starting
+            // photoSection.classList.add('active'); // Removed
         } else if (method === 'secret_code') {
             secretCodeVerifyBtn.classList.add('active', 'btn-green');
             secretCodeVerifyBtn.classList.remove('btn-secondary');
             secretCodeSection.classList.add('active');
-            // *** CAMERA LOGIC REMOVED ***
-            // stopCamera();
-        }
+        } 
 
         validateFormAndEnableVerify();
     }
 
-    // *** verifyPhoto FUNCTION COMPLETELY REMOVED AS PER REQUIREMENT ***
-    // *** Camera setup/cleanup functions (startCamera, stopCamera, captureFrame) are also removed/commented out ***
-
+    // *** verifyPhoto FUNCTION REMOVED ***
 
     /**
      * Handles the logic for resetting the user's secret code.
@@ -1217,8 +1205,7 @@
         laneSelect.addEventListener('change', () => {
             houseNumberSelect.innerHTML = '<option value="">Select...</option>';
             const selectedLane = laneSelect.value;
-            if (selectedLane && dynamicCommunityData[selectedLane]) {
-                 // *** FIX: Sort houses as well ***
+            if (selectedLane && dynamicCommunityData[selectedLane]) { 
                  for (const house of dynamicCommunityData[selectedLane].slice().sort()) {
                     houseNumberSelect.innerHTML += `<option value="${house}">${house}</option>`;
                 }
@@ -1242,7 +1229,7 @@
             let payload = {
                 society: societyInput.value.trim(),
                 secret_code: secretCodeInput.value,
-                mode: document.getElementById('mode_check').checked ? 'check' : 'vote' // Added mode to payload for code verification
+                mode: document.getElementById('mode_check').checked ? 'check' : 'vote'
             };
 
             // Add address details to payload for backend lookup consistency
@@ -1260,7 +1247,8 @@
             showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingCode'] if selected_language_code and languages[selected_language_code].message_verifyingCode else 'Verifying code...' }}");
 
             try {
-                const response = await fetch('/api/verify_code', { // Assuming this is the correct Flask endpoint for code verification
+                // Assuming backend endpoint for code verification is '/api/verify_code'
+                const response = await fetch('/api/verify_code', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -1270,7 +1258,7 @@
                 hideGlobalOverlay();
 
                 if (data.success) {
-                    isVerified = true; // Mark as verified for this session
+                    isVerified = true; 
                     const isCheckMode = document.getElementById('mode_check').checked;
                     const timestamp = data.voted_at;
                     const userId = getUserId();
@@ -1289,15 +1277,13 @@
                     }
                     
                     // VOTE MODE (NOT CHECK MODE)
-                    if (timestamp) {
-                        console.log("Already voted -> handleAlreadyVoted");
+                    if (timestamp) { 
                         handleAlreadyVoted(userId);
                     } else {
-                        // *** *** *** *** CRITICAL FIX: LOAD ballot.html *** *** *** ***
+                        // *** CRITICAL FIX: LOAD ballot.html ***
                         showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
                         window.location.replace(data.redirect_url || "/ballot.html"); 
-                        // *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
-                        return;
+                        return; 
                     }
                 } else {
                     alert(data.message || "{{ languages[selected_language_code]['alert_verificationFailed'] if selected_language_code and languages[selected_language_code].alert_verificationFailed else 'Verification failed.' }}");
@@ -1333,7 +1319,7 @@
         // Add listener for secretCodeInput to enable submit button
         secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
     });
-</script>
+</script> 
 
   <footer class="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-lg text-gray-500 select-none pointer-events-auto z-50">
     D3 by: 
