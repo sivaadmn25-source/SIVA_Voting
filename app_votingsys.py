@@ -1,5 +1,6 @@
 import psycopg2, psycopg2.extras, os, json, traceback
 from flask import Flask, jsonify, request, render_template, session, redirect, url_for, flash, send_from_directory, make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime
 import pytz
 from language_data import languages
@@ -13,6 +14,7 @@ from werkzeug.security import generate_password_hash, check_password_hash # ADDE
 load_dotenv()
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_prefix=1)
 app.secret_key = os.getenv("FLASK_VOTER_SECRET_KEY", "a_secret_key_for_voter_sessions")
 app.config['SESSION_COOKIE_SECURE'] = True 
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
