@@ -457,8 +457,23 @@
       <meta http-equiv="Expires" content="0">
   </head>
 <body>
-    <div class="ribbon">
-      <h2>{{ languages[selected_language_code]['ribbonTitle_vote'] if selected_language_code and languages[selected_language_code].ribbonTitle_vote else 'Validate Vote Details' }} <span class="siva-text"> SIVA </span></h2>
+      <div class="ribbon">
+<!--         <svg class="chakra" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="48" stroke="#0000FF" stroke-width="4" fill="none"/>
+          <g stroke="#0000FF" stroke-width="2">
+            <g transform="translate(50,50)">
+              <circle r="3" fill="#0000FF"/>
+              <defs>
+                <line id="spoke" y1="3" y2="-47"/>
+              </defs>
+              {% for i in range(0, 360, 15) %}
+                <use href="#spoke" transform="rotate({{ i }})"/>
+              {% endfor %}
+            </g>
+          </g>
+        </svg>  -->
+    
+        <h2>{{ languages[selected_language_code]['ribbonTitle_vote'] if selected_language_code and languages[selected_language_code].ribbonTitle_vote else 'Validate Vote Details' }} <span class="siva-text"> SIVA </span></h2>
         </div>
 
     <div class="content-area-wrapper">
@@ -697,7 +712,8 @@
         </button>
     </div>
 </div>
- 
+
+
 <script>
     // --- Data is now fetched dynamically ---
     let dynamicCommunityData = {};
@@ -720,15 +736,14 @@
     const flatNoLanesSelect = document.getElementById('flat_no_lanes');
     const photoVerifyBtn = document.getElementById('photoVerifyBtn'); 
     const secretCodeVerifyBtn = document.getElementById('secretCodeVerifyBtn');
-    // Removed/Commented out photo specific elements as camera is disabled
-    // const photoSection = document.getElementById('photo_verification_section'); 
+    const photoSection = document.getElementById('photo_verification_section');
     const secretCodeSection = document.getElementById('secret_code_verification_section');
-    // const video = document.getElementById('video');
-    // const canvas = document.getElementById('canvas');
-    // const context = canvas.getContext('2d');
-    // const startCameraButton = document.getElementById('startCameraButton');
-    // const verifyPhotoButton = document.getElementById('verifyPhotoButton'); 
-    // const stopCameraButton = document.getElementById('stopCameraButton'); 
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    const startCameraButton = document.getElementById('startCameraButton');
+    const verifyPhotoButton = document.getElementById('verifyPhotoButton');
+    const stopCameraButton = document.getElementById('stopCameraButton');
     const secretCodeInput = document.getElementById('secret_code');
     const submitSecretCodeButton = document.getElementById('submitSecretCodeButton');
     const messageDisplayBox = document.getElementById('message_display_box');
@@ -741,7 +756,7 @@
     const submitNewCodeButton = document.getElementById('submitNewCodeButton');
     // END NEW Variables
     
-    // let currentStream = null; // Removed camera stream variable
+    let currentStream = null;
     let isVerified = false;
     let currentVerificationMethod = null;
 
@@ -769,7 +784,8 @@
     /**
      * Validates the new and confirmation secret codes.
      */
-    function validateNewCode() {
+
+        function validateNewCode() {
         const newCode = newSecretCodeInput.value.trim();
         const confirmCode = confirmNewSecretCodeInput.value.trim();
         
@@ -795,7 +811,8 @@
      * while preserving the Society Name input for the next voter.
      */
     function handleAlreadyVoted(voterId) {
-        // Camera stop logic removed/bypassed
+        // Stop any active camera stream
+        stopCamera(); 
         
         // Hide the dynamic address and verification fields
         dynamicFormFields.classList.add('hidden-fields');
@@ -845,8 +862,8 @@
         switchVerificationMethod(null); // Hide verification sections
         
         // --- FIX: Disable method buttons ---
-        photoVerifyBtn.disabled = true; // Keep photo button disabled (no camera)
-        secretCodeVerifyBtn.disabled = true; // Keep disabled until society is loaded
+        photoVerifyBtn.disabled = true;
+        secretCodeVerifyBtn.disabled = true;
         // ---------------------------------
         
         validateFormAndEnableVerify(); // Disable submit buttons
@@ -873,14 +890,15 @@
 
             const data = await response.json();
 
+            // --- THIS IS THE CORRECT LOGIC FOR THIS FUNCTION ---
             if (data.success) {
                 hideGlobalOverlay();
                 dynamicCommunityData = data.community_data;
                 currentCommunityType = data.community_type;
                 
-                // --- FIX: Enable SECRET CODE method button ONLY ---
-                photoVerifyBtn.disabled = true; // Camera is removed
-                secretCodeVerifyBtn.disabled = false; // Enable secret code check
+                // --- FIX: Enable method buttons ---
+                photoVerifyBtn.disabled = true;
+                secretCodeVerifyBtn.disabled = false;
                 // ----------------------------------
                 
                 populateDynamicFields();
@@ -890,6 +908,7 @@
                 alert(data.message);
                 resetDynamicFields();
             }
+            // --- END OF CORRECT LOGIC ---
 
         } catch (err) {
             console.error("Error fetching society details:", err);
@@ -1047,22 +1066,18 @@
      */
     function validateFormAndEnableVerify() {
         const idSelected = areDetailsSelected();
-        const secretCodeEntered = secretCodeInput.value.trim().length > 0; 
+        const secretCodeEntered = secretCodeInput.value.trim().length > 0; // NEW CHECK
 
         if (currentVerificationMethod === 'photo') {
-            // Photo method is disabled entirely
-            // Note: I'm intentionally leaving the `verifyPhotoButton` variable here, 
-            // even though the element is likely removed or hidden in your HTML,
-            // to avoid breaking logic that references it.
-            // verifyPhotoButton.disabled = true; 
+            verifyPhotoButton.disabled = !idSelected || currentStream === null;
             submitSecretCodeButton.disabled = true;
         } else if (currentVerificationMethod === 'secret_code') {
-            // Only enable submit if details are selected AND code is entered
-            submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; 
-            // verifyPhotoButton.disabled = true;
+            // Check if details are selected AND a code is entered
+            submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; // MODIFIED LINE
+            verifyPhotoButton.disabled = true;
         } else {
             // No method selected
-            // verifyPhotoButton.disabled = true;
+            verifyPhotoButton.disabled = true;
             submitSecretCodeButton.disabled = true;
         }
     }
@@ -1075,33 +1090,158 @@
         secretCodeVerifyBtn.classList.remove('active', 'btn-green');
         secretCodeVerifyBtn.classList.add('btn-secondary');
 
-        // photoSection is removed from logic
+        photoSection.classList.remove('active');
         secretCodeSection.classList.remove('active');
         
         if (!method) { // Call to hide sections
-            // Ensure secret code input is cleared when hiding
-            secretCodeInput.value = ''; 
-            validateFormAndEnableVerify();
-            return;
+             stopCamera();
+             validateFormAndEnableVerify();
+             return;
         }
 
         if (method === 'photo') {
             photoVerifyBtn.classList.add('active', 'btn-green');
             photoVerifyBtn.classList.remove('btn-secondary');
+            photoSection.classList.add('active');
+            stopCamera(); // Ensure camera is off before starting
         } else if (method === 'secret_code') {
             secretCodeVerifyBtn.classList.add('active', 'btn-green');
             secretCodeVerifyBtn.classList.remove('btn-secondary');
-            
-            // 🔥 CRITICAL FIX: Ensure the section and input are ready
             secretCodeSection.classList.add('active');
-            secretCodeInput.disabled = false; // Explicitly enable the input field
-            secretCodeInput.focus(); // Set focus for immediate entry
+            stopCamera();
         }
 
         validateFormAndEnableVerify();
     }
 
-    // *** verifyPhoto FUNCTION REMOVED ***
+    async function startCamera() {
+        if (currentStream) return;
+        try {
+            showGlobalOverlay("{{ languages[selected_language_code]['message_startingCamera'] if selected_language_code and languages[selected_language_code].message_startingCamera else 'Starting camera...' }}");
+            const constraints = { video: { facingMode: "user" } };
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = currentStream;
+            await video.play();
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            hideGlobalOverlay();
+            startCameraButton.disabled = true;
+            stopCameraButton.disabled = false;
+            validateFormAndEnableVerify();
+        } catch (err) {
+            console.error("Error accessing camera:", err);
+            hideGlobalOverlay();
+            alert("{{ languages[selected_language_code]['alert_errorAccessingCamera'] if selected_language_code and languages[selected_language_code].alert_errorAccessingCamera else 'Could not access camera. Please check browser permissions.' }}");
+            startCameraButton.disabled = false;
+            stopCameraButton.disabled = true;
+            validateFormAndEnableVerify();
+        }
+    }
+
+    function stopCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+            video.srcObject = null;
+        }
+        startCameraButton.disabled = false;
+        stopCameraButton.disabled = true;
+        canvas.classList.remove('show');
+        validateFormAndEnableVerify();
+    }
+
+    function captureFrame() {
+        if (!currentStream) return null;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.classList.add('show');
+        return canvas.toDataURL('image/jpeg', 0.9);
+    }
+
+    async function verifyPhoto() {
+        if (isVerified) return;
+        if (!areDetailsSelected()) {
+            alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please select all details first (Society, Tower, Floor, etc.).' }}");
+            return;
+        }
+        const photoDataUrl = captureFrame();
+        if (!photoDataUrl) {
+            alert("{{ languages[selected_language_code]['alert_noPhotoCaptured'] if selected_language_code and languages[selected_language_code].alert_noPhotoCaptured else 'No photo captured. Please start the camera first.' }}");
+            return;
+        }
+
+        showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingFace'] if selected_language_code and languages[selected_language_code].message_verifyingFace else 'Verifying face...' }}");
+        verifyPhotoButton.disabled = true;
+
+        // Build dynamic payload
+        let payload = {
+            society: societyInput.value.trim(),
+            image_data: photoDataUrl,
+            mode: document.getElementById('mode_check').checked ? 'check' : 'vote'
+        };
+        if (currentCommunityType === 'apartment') {
+            payload.tower = towerSelect.value;
+            payload.flat = flatIdSelect.value;
+        } else if (currentCommunityType === 'individual_lanes') {
+            payload.lane = laneSelect.value;
+            payload.house = houseNumberSelect.value;
+        } else if (currentCommunityType === 'individual_no_lanes') { // <-- FIX ADDED
+            payload.flat = flatNoLanesSelect.value;
+        }
+
+        try {
+            const response = await fetch('/api/verify_face', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            // --- THIS IS THE NEW, CORRECT LOGIC ---
+            if (data.success) {
+                isVerified = true;
+                stopCamera();
+                hideGlobalOverlay();
+                
+                const isCheckMode = document.getElementById('mode_check').checked;
+                const timestamp = data.voted_at;
+                const userId = getUserId(); // Get the ID to display
+
+                if (isCheckMode) {
+                    if (timestamp) {
+                        const proofMessage = `
+                            {{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}
+                        `;
+                        alert(proofMessage);
+                    } else {
+                        alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
+                    }
+                } else {
+                    // User wants to VOTE
+                    if (timestamp) {
+                        // Display the dedicated HTML section instead of an alert
+                        handleAlreadyVoted(userId);
+                    } else {
+                        showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
+                        setTimeout(() => { 
+                            window.location.replace(data.redirect_url); 
+                        }, 1500);
+                    }
+                }
+            } else {
+                hideGlobalOverlay();
+                alert(data.message || "{{ languages[selected_language_code]['alert_verificationFailed'] if selected_language_code and languages[selected_language_code].alert_verificationFailed else 'Verification failed.' }}");
+            }
+            // --- END OF NEW LOGIC ---
+
+        } catch (error) {
+            hideGlobalOverlay();
+            console.error('Photo verification error:', error);
+            alert("{{ languages[selected_language_code]['alert_errorPhotoVerification'] if selected_language_code and languages[selected_language_code].alert_errorPhotoVerification else 'An error occurred during photo verification.' }}");
+        } finally {
+            if (!isVerified) verifyPhotoButton.disabled = false;
+        }
+    }
 
     /**
      * Handles the logic for resetting the user's secret code.
@@ -1214,7 +1354,7 @@
             houseNumberSelect.innerHTML = '<option value="">Select...</option>';
             const selectedLane = laneSelect.value;
             if (selectedLane && dynamicCommunityData[selectedLane]) {
-                 for (const house of dynamicCommunityData[selectedLane].slice().sort()) {
+                 for (const house of dynamicCommunityData[selectedLane].sort()) {
                     houseNumberSelect.innerHTML += `<option value="${house}">${house}</option>`;
                 }
                 houseNumberSelect.disabled = false;
@@ -1228,19 +1368,6 @@
 
         // --- VERIFICATION BUTTON LISTENERS (MODIFIED) ---
 
-        // Listener for the "Secret Code" button to show the input box
-        secretCodeVerifyBtn.addEventListener('click', () => {
-            if (!secretCodeVerifyBtn.disabled) {
-                switchVerificationMethod('secret_code');
-            }
-        });
-
-        // Listener for the "Photo Verify" button (disabled, but kept for structure)
-        photoVerifyBtn.addEventListener('click', () => {
-            alert('Photo Verification is disabled. Please use Secret Code.');
-        });
-
-
         submitSecretCodeButton.addEventListener('click', async () => {
             if (!areDetailsSelected() || !secretCodeInput.value) {
                 alert("{{ languages[selected_language_code]['alert_selectDetailsAndCode'] if selected_language_code and languages[selected_language_code].alert_selectDetailsAndCode else 'Error: All fields are required.' }}");
@@ -1253,10 +1380,12 @@
                 mode: document.getElementById('mode_check').checked ? 'check' : 'vote'
             };
 
-            // Add address details to payload for backend lookup consistency
+            // Build payload based on community type (same as before)
             if (currentCommunityType === 'apartment') {
+                let flatValue = flatIdSelect.value;
+                if (flatValue.length === 3) flatValue = "0" + flatValue;
                 payload.tower = towerSelect.value;
-                payload.flat = flatIdSelect.value;
+                payload.flat = flatValue;
             } else if (currentCommunityType === 'individual_lanes') {
                 payload.lane = laneSelect.value;
                 payload.house = houseNumberSelect.value;
@@ -1264,86 +1393,108 @@
                 payload.flat = flatNoLanesSelect.value;
             }
 
-            submitSecretCodeButton.disabled = true;
-            showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingCode'] if selected_language_code and languages[selected_language_code].message_verifyingCode else 'Verifying code...' }}");
-
+            showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingCode'] if selected_language_code and languages[selected_language_code].message_verifyingCode else 'Verifying...' }}");
+            submitSecretCodeButton.disabled = true; 
+            
             try {
-                // Assuming backend endpoint for code verification is '/api/verify_code'
-                const response = await fetch('/api/verify_code', { 
+                const response = await fetch('/api/verify_code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
                 const data = await response.json();
                 hideGlobalOverlay();
 
                 if (data.success) {
-                    isVerified = true; 
+                    
+                    if (data.needs_reset) { 
+                        showResetDialog();
+                        secretCodeInput.value = ''; 
+                        return; 
+                    }
+
                     const isCheckMode = document.getElementById('mode_check').checked;
                     const timestamp = data.voted_at;
-                    const userId = getUserId();
+                    const userId = getUserId(); 
 
                     if (isCheckMode) {
-                         if (timestamp) {
-                             const proofMessage = `
-                                {{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}
-                             `;
-                             alert(proofMessage);
-                         } else {
-                             alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
-                         }
-                         // Reset isVerified status for next attempt/user if only checking
-                         isVerified = false; 
-                         submitSecretCodeButton.disabled = false; 
-                         return;
-                    }
-                    
-                    // VOTE MODE (NOT CHECK MODE)
-                    if (timestamp) {
-                        handleAlreadyVoted(userId);
+                        // Logic for Check Mode
+                        if (timestamp) {
+                            alert(`{{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}`);
+                        } else {
+                            alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
+                        }
                     } else {
-                        // *** CRITICAL FIX: LOAD ballot.html ***
-                        showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
-                        window.location.replace(data.redirect_url || "/ballot.html"); 
-                        return;
+                        // User wants to VOTE
+                        if (timestamp) {
+                            // *** CRITICAL FIX: Trigger non-disruptive 'Already Voted' message ***
+                            handleAlreadyVoted(userId);
+                            // Do not redirect to the ballot page (data.redirect_url)
+                        } else {
+                            // User is verified and hasn't voted. Proceed to ballot.
+                            showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
+                            setTimeout(() => { 
+                                window.location.replace(data.redirect_url); 
+                            }, 1500);
+                        }
                     }
                 } else {
-                    alert(data.message || "{{ languages[selected_language_code]['alert_verificationFailed'] if selected_language_code and languages[selected_language_code].alert_verificationFailed else 'Verification failed.' }}");
+                    alert(data.message);
                 }
-            } catch (error) {
-                console.error('Secret Code verification error:', error);
-                alert("{{ languages[selected_language_code]['alert_errorVerifyingCode'] if selected_language_code and languages[selected_language_code].alert_errorVerifyingCode else 'Error during code verification.' }}");
+
+            } catch (err) {
+                console.error("Secret code verification error:", err);
+                hideGlobalOverlay();
+                alert("{{ languages[selected_language_code]['alert_errorSecretCodeVerification'] if selected_language_code and languages[selected_language_code].alert_errorSecretCodeVerification else 'A server error occurred during verification.' }}");
             } finally {
-                if (!isVerified) submitSecretCodeButton.disabled = false;
+                submitSecretCodeButton.disabled = false; 
+                validateFormAndEnableVerify();
             }
         });
 
-
-        // --- OTHER LISTENERS ---
-        
-        // Reset Code Dialog Listeners
-        document.getElementById('resetCodeBtn').addEventListener('click', () => {
-            if (!areDetailsSelected()) {
-                alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please select all details first.' }}");
-                return;
-            }
-            showResetDialog();
+        photoVerifyBtn.addEventListener('click', () => {
+            if (areDetailsSelected()) { switchVerificationMethod('photo'); } 
+            else { alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please enter society and select all details first.' }}"); }
         });
-        document.getElementById('closeResetDialog').addEventListener('click', hideResetDialog);
+        secretCodeVerifyBtn.addEventListener('click', () => {
+            if (areDetailsSelected()) { switchVerificationMethod('secret_code'); } 
+            else { alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please enter society and select all details first.' }}"); }
+        });
+
+        secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
+
+        startCameraButton.addEventListener('click', startCamera);
+        stopCameraButton.addEventListener('click', stopCamera);
+        verifyPhotoButton.addEventListener('click', verifyPhoto);
+
+        // --- NEW DIALOG LISTENERS ---
         newSecretCodeInput.addEventListener('input', validateNewCode);
         confirmNewSecretCodeInput.addEventListener('input', validateNewCode);
         submitNewCodeButton.addEventListener('click', resetSecretCode);
-        
-        // Initialize the state (ensures buttons are disabled if no society is entered)
-        resetDynamicFields(); 
-        validateFormAndEnableVerify(); // Set initial state for buttons
-
-        // Add listener for secretCodeInput to enable submit button
-        secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
+        // -----------------------------
     });
-</script>
 
+    // Prevent back-button caching issues
+    window.onload = function () {
+        history.pushState(null, null, location.href);
+        window.addEventListener('popstate', function(event) {
+            history.pushState(null, null, location.href);
+        });
+        const navEntry = performance.getEntriesByType("navigation")[0];
+        const isBackNav = performance.navigation.type === 2 || (navEntry && navEntry.type === "back_forward");
+        if (isBackNav) { location.reload(); }
+    };
+     
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (
+        e.key === "F12" ||
+        (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(e.key.toUpperCase())) ||
+        (e.ctrlKey && e.key.toUpperCase() === "U")
+        ) e.preventDefault();
+    }); 
+
+</script>
   <footer class="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-lg text-gray-500 select-none pointer-events-auto z-50">
     D3 by: 
     <a href="mailto:siva.admn25@gmail.com" style="color: #0000FF;" class="underline hover:text-blue-700">

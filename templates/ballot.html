@@ -131,18 +131,25 @@ body {
     margin-left: auto;
 }
 
+/* 🖼️ General image sizing and borders */
 .photo-container img,
 .symbol-container img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    border-radius: 8px;
+    width: 100%;       
+    height: 100%;      
     border: 1px solid #e2e8f0;
     background-color: white;
 }
+
+/* 🖼️ PHOTO: Square with Rounded Edges */
 .photo-container img {
-    object-fit: cover;
-    border-radius: 50%;
+    object-fit: contain;      /* Fills the space (crops if necessary) */
+    border-radius: 8px;     /* Rounded corners */
+}
+
+/* ⭕ SYMBOL: Perfect Circle */
+.symbol-container img {
+    object-fit: contain;    /* Shrinks the entire symbol to fit inside the circle */
+    border-radius: 50%;     /* Perfect circle shape */
 }
 
 .contestant-info {
@@ -332,10 +339,8 @@ body {
             </div>
 
             <div class="symbol-container">
-                {% if contestant.symbol %}
-                    <!-- FIX: This uses the contestant.symbol field which now holds the full Base64 string -->
-                    <!-- We use the value directly, assuming the Admin saves the full Data URI (data:image/png;base64,...) -->
-                    <img src="{{ contestant.symbol }}" alt="{{ contestant.symbol_name }} Symbol">
+                {% if contestant.symbol_b64 %}
+                    <img src="{{ contestant.symbol_b64 }}" alt="{{ contestant.name }} Symbol">
                 {% endif %}
             </div>
 
