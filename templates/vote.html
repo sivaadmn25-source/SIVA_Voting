@@ -457,23 +457,8 @@
       <meta http-equiv="Expires" content="0">
   </head>
 <body>
-      <div class="ribbon">
-<!--         <svg class="chakra" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="48" stroke="#0000FF" stroke-width="4" fill="none"/>
-          <g stroke="#0000FF" stroke-width="2">
-            <g transform="translate(50,50)">
-              <circle r="3" fill="#0000FF"/>
-              <defs>
-                <line id="spoke" y1="3" y2="-47"/>
-              </defs>
-              {% for i in range(0, 360, 15) %}
-                <use href="#spoke" transform="rotate({{ i }})"/>
-              {% endfor %}
-            </g>
-          </g>
-        </svg>  -->
-    
-        <h2>{{ languages[selected_language_code]['ribbonTitle_vote'] if selected_language_code and languages[selected_language_code].ribbonTitle_vote else 'Validate Vote Details' }} <span class="siva-text"> SIVA </span></h2>
+    <div class="ribbon">
+      <h2>{{ languages[selected_language_code]['ribbonTitle_vote'] if selected_language_code and languages[selected_language_code].ribbonTitle_vote else 'Validate Vote Details' }} <span class="siva-text"> SIVA </span></h2>
         </div>
 
     <div class="content-area-wrapper">
@@ -712,419 +697,642 @@
         </button>
     </div>
 </div>
- 
+
 <script>
-const CAMERA_MODE_ENABLED = false;  // camera disabled flag
+    // --- Data is now fetched dynamically ---
+    let dynamicCommunityData = {};
+    let currentCommunityType = null; // e.g., 'apartment', 'individual_lanes', 'individual_no_lanes'
 
-// --- Data is now fetched dynamically ---
-let dynamicCommunityData = {};
-let currentCommunityType = null;
+    // --- Variable declarations ---
+    const societyInput = document.getElementById('society_name');
+    const dynamicFormFields = document.getElementById('dynamic_form_fields');
+    const apartmentFieldGroup = document.getElementById('apartment_field_group');
+    const laneHouseFields = document.getElementById('lane_house_fields');
+    const voteForm = document.getElementById('voteForm');
+    const alreadyVotedMessageSection = document.getElementById('alreadyVotedMessageSection');
+    const votedIdDisplay = document.getElementById('votedIdDisplay');
+    const resetMessageDisplay = document.getElementById('reset_message_display');
+    const towerSelect = document.getElementById('tower');
+    const floorSelect = document.getElementById('floor');
+    const flatIdSelect = document.getElementById('flat_id');
+    const laneSelect = document.getElementById('lane');
+    const houseNumberSelect = document.getElementById('house_number');
+    const flatNoLanesSelect = document.getElementById('flat_no_lanes');
+    const photoVerifyBtn = document.getElementById('photoVerifyBtn'); 
+    const secretCodeVerifyBtn = document.getElementById('secretCodeVerifyBtn');
+    // CAMERA/PHOTO ELEMENTS REMOVED FROM USAGE/DECLARATION SCOPE WHERE POSSIBLE
+    // const photoSection = document.getElementById('photo_verification_section'); 
+    const secretCodeSection = document.getElementById('secret_code_verification_section');
+    // const video = document.getElementById('video');
+    // const canvas = document.getElementById('canvas');
+    // const context = canvas.getContext('2d');
+    // const startCameraButton = document.getElementById('startCameraButton');
+    // const verifyPhotoButton = document.getElementById('verifyPhotoButton'); // Renamed/removed in logic flow
+    // const stopCameraButton = document.getElementById('stopCameraButton'); // Renamed/removed in logic flow
+    const secretCodeInput = document.getElementById('secret_code');
+    const submitSecretCodeButton = document.getElementById('submitSecretCodeButton');
+    const messageDisplayBox = document.getElementById('message_display_box');
+    const globalOverlayMessage = document.getElementById('globalOverlayMessage');
 
-// --- Variable declarations ---
-const societyInput = document.getElementById('society_name');
-const dynamicFormFields = document.getElementById('dynamic_form_fields');
-const apartmentFieldGroup = document.getElementById('apartment_field_group');
-const laneHouseFields = document.getElementById('lane_house_fields');
-const voteForm = document.getElementById('voteForm');
-const alreadyVotedMessageSection = document.getElementById('alreadyVotedMessageSection');
-const votedIdDisplay = document.getElementById('votedIdDisplay');
-const resetMessageDisplay = document.getElementById('reset_message_display');
-const towerSelect = document.getElementById('tower');
-const floorSelect = document.getElementById('floor');
-const flatIdSelect = document.getElementById('flat_id');
-const laneSelect = document.getElementById('lane');
-const houseNumberSelect = document.getElementById('house_number');
-const flatNoLanesSelect = document.getElementById('flat_no_lanes');
-const photoVerifyBtn = document.getElementById('photoVerifyBtn');
-const secretCodeVerifyBtn = document.getElementById('secretCodeVerifyBtn');
-const photoSection = document.getElementById('photo_verification_section');
-const secretCodeSection = document.getElementById('secret_code_verification_section');
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const context = canvas.getContext('2d');
-const startCameraButton = document.getElementById('startCameraButton');
-const verifyPhotoButton = document.getElementById('verifyPhotoButton');
-const stopCameraButton = document.getElementById('stopCameraButton');
-const secretCodeInput = document.getElementById('secret_code');
-const submitSecretCodeButton = document.getElementById('submitSecretCodeButton');
-const messageDisplayBox = document.getElementById('message_display_box');
-const globalOverlayMessage = document.getElementById('global-overlay-message');
-const resetCodeDialog = document.getElementById('resetCodeDialog');
-const newSecretCodeInput = document.getElementById('new_secret_code');
-const confirmNewSecretCodeInput = document.getElementById('confirm_new_secret_code');
-const submitNewCodeButton = document.getElementById('submitNewCodeButton');
+    // NEW Variables for Code Reset Dialog
+    const resetCodeDialog = document.getElementById('resetCodeDialog');
+    const newSecretCodeInput = document.getElementById('new_secret_code');
+    const confirmNewSecretCodeInput = document.getElementById('confirm_new_secret_code');
+    const submitNewCodeButton = document.getElementById('submitNewCodeButton');
+    // END NEW Variables
+    
+    // let currentStream = null; // Removed as camera is disabled
+    let isVerified = false;
+    let currentVerificationMethod = null;
 
-let currentStream = null;
-let isVerified = false;
-let currentVerificationMethod = null;
+    // --- Function Definitions ---
 
-// --- Function Definitions ---
-
-function showResetDialog() {
-    resetCodeDialog.style.display = 'flex';
-    newSecretCodeInput.value = '';
-    confirmNewSecretCodeInput.value = '';
-    submitNewCodeButton.disabled = true;
-    resetMessageDisplay.classList.add('hidden');
-    newSecretCodeInput.focus();
-}
-
-function hideResetDialog() {
-    resetCodeDialog.style.display = 'none';
-}
-
-function validateNewCode() {
-    const newCode = newSecretCodeInput.value.trim();
-    const confirmCode = confirmNewSecretCodeInput.value.trim();
-    resetMessageDisplay.classList.add('hidden');
-
-    if (newCode.length > 0 && confirmCode.length > 0 && newCode !== confirmCode) {
-        resetMessageDisplay.textContent = "Passwords must be the same.";
-        resetMessageDisplay.classList.remove('hidden');
+    /**
+     * Displays the code reset dialog.
+     */
+    function showResetDialog() {
+        resetCodeDialog.style.display = 'flex'; // Use flex to center the content
+        newSecretCodeInput.value = '';
+        confirmNewSecretCodeInput.value = '';
         submitNewCodeButton.disabled = true;
-        return false;
+        resetMessageDisplay.classList.add('hidden'); // Hide any previous error messages
+        newSecretCodeInput.focus(); // Set focus to the first input field
     }
 
-    const isValid = newCode.length > 0 && newCode === confirmCode;
-    submitNewCodeButton.disabled = !isValid;
-    return isValid;
-}
+    /**
+     * Hides the code reset dialog.
+     */
+    function hideResetDialog() {
+        resetCodeDialog.style.display = 'none';
+    }
 
-function handleAlreadyVoted(voterId) {
-    stopCamera();
-    dynamicFormFields.classList.add('hidden-fields');
-    switchVerificationMethod(null);
-    secretCodeInput.value = '';
-    votedIdDisplay.textContent = voterId;
-    alreadyVotedMessageSection.style.display = 'block';
-}
+    /**
+     * Validates the new and confirmation secret codes.
+     */
+    function validateNewCode() {
+        const newCode = newSecretCodeInput.value.trim();
+        const confirmCode = confirmNewSecretCodeInput.value.trim();
+        
+        resetMessageDisplay.classList.add('hidden'); // Start by hiding previous messages
 
-function resetDynamicFields() {
-    alreadyVotedMessageSection.style.display = 'none';
-    dynamicFormFields.classList.add('hidden-fields');
-    apartmentFieldGroup.classList.add('hidden-fields');
-    laneHouseFields.classList.add('hidden-fields');
-    document.getElementById('no_lane_fields').classList.add('hidden-fields');
-
-    towerSelect.innerHTML = '<option value="">Select...</option>';
-    floorSelect.innerHTML = '<option value="">Select...</option>';
-    flatIdSelect.innerHTML = '<option value="">Select...</option>';
-    laneSelect.innerHTML = '<option value="">Select...</option>';
-    houseNumberSelect.innerHTML = '<option value="">Select...</option>';
-    flatNoLanesSelect.innerHTML = '<option value="">Select...</option>';
-
-    towerSelect.disabled = false;
-    floorSelect.disabled = true;
-    flatIdSelect.disabled = true;
-    laneSelect.disabled = false;
-    houseNumberSelect.disabled = true;
-
-    dynamicCommunityData = {};
-    currentCommunityType = null;
-
-    switchVerificationMethod(null);
-    photoVerifyBtn.disabled = true;
-    secretCodeVerifyBtn.disabled = true;
-    validateFormAndEnableVerify();
-}
-
-async function fetchSocietyDetails() {
-    const societyName = societyInput.value.trim();
-    if (!societyName) { resetDynamicFields(); return; }
-
-    showGlobalOverlay("Fetching society details...");
-    try {
-        const response = await fetch('/api/get_society_details', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ society: societyName })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            hideGlobalOverlay();
-            dynamicCommunityData = data.community_data;
-            currentCommunityType = data.community_type;
-            photoVerifyBtn.disabled = true;
-            secretCodeVerifyBtn.disabled = false;
-            populateDynamicFields();
-            document.getElementById('dynamic_form_fields').classList.remove('hidden-fields');
-        } else {
-            hideGlobalOverlay();
-            alert(data.message);
-            resetDynamicFields();
+        if (newCode.length > 0 && confirmCode.length > 0 && newCode !== confirmCode) {
+            // New validation check: codes do not match
+            resetMessageDisplay.textContent = "Passwords must be the same.";
+            resetMessageDisplay.classList.remove('hidden');
+            submitNewCodeButton.disabled = true;
+            return false;
         }
-    } catch (err) {
-        console.error("Error fetching society details:", err);
-        hideGlobalOverlay();
-        alert("An error occurred while fetching society details.");
-        resetDynamicFields();
+
+        const isValid = newCode.length > 0 && newCode === confirmCode;
+        submitNewCodeButton.disabled = !isValid;
+        
+        return isValid;
     }
-}
 
-function populateDynamicFields() {
-    apartmentFieldGroup.classList.add('hidden-fields');
-    laneHouseFields.classList.add('hidden-fields');
-    document.getElementById('no_lane_fields').classList.add('hidden-fields');
 
-    const cleanType = currentCommunityType ? currentCommunityType.trim() : '';
-    if (cleanType === 'apartment') {
-        apartmentFieldGroup.classList.remove('hidden-fields');
-        populateApartmentDropdowns();
-    } else if (cleanType === 'individual_lanes') {
-        laneHouseFields.classList.remove('hidden-fields');
-        populateLaneDropdowns();
-    } else if (cleanType === 'individual_no_lanes') {
-        document.getElementById('no_lane_fields').classList.remove('hidden-fields');
+    /**
+     * CRITICAL FIX: Handles the display of the 'already voted' message 
+     * while preserving the Society Name input for the next voter.
+     */
+    function handleAlreadyVoted(voterId) {
+        // *** CAMERA LOGIC REMOVED ***
+        // stopCamera(); 
+        
+        // Hide the dynamic address and verification fields
+        dynamicFormFields.classList.add('hidden-fields');
+
+        // Reset verification method buttons
+        switchVerificationMethod(null);
+        
+        // Clear the secret code input for the next user
+        secretCodeInput.value = '';
+
+        // Update the voted ID display and show the dedicated message section
+        votedIdDisplay.textContent = voterId;
+        alreadyVotedMessageSection.style.display = 'block';
+
+        // NOTE: We intentionally DO NOT hide voteForm (which contains societyInput)
+        // This ensures the Society Name field remains visible and ready for the next entry.
+    }
+    
+    /**
+     * Resets all dynamic fields, hiding them and clearing data.
+     */
+    function resetDynamicFields() {
+        // Ensure the large 'already voted' message is hidden when a user interacts again
+        alreadyVotedMessageSection.style.display = 'none'; 
+
+        dynamicFormFields.classList.add('hidden-fields');
+        apartmentFieldGroup.classList.add('hidden-fields');
+        laneHouseFields.classList.add('hidden-fields');
+        document.getElementById('no_lane_fields').classList.add('hidden-fields');
+
+        towerSelect.innerHTML = '<option value="">Select...</option>';
+        floorSelect.innerHTML = '<option value="">Select...</option>';
+        flatIdSelect.innerHTML = '<option value="">Select...</option>';
+        laneSelect.innerHTML = '<option value="">Select...</option>';
+        houseNumberSelect.innerHTML = '<option value="">Select...</option>';
         flatNoLanesSelect.innerHTML = '<option value="">Select...</option>';
-        if (dynamicCommunityData && dynamicCommunityData.flats) {
-            for (const flat of dynamicCommunityData.flats) {
-                flatNoLanesSelect.innerHTML += `<option value="${flat}">${flat}</option>`;
-            }
-        }
-        flatNoLanesSelect.disabled = false;
+
+        towerSelect.disabled = false;
+        floorSelect.disabled = true;
+        flatIdSelect.disabled = true;
+        laneSelect.disabled = false;
+        houseNumberSelect.disabled = true;
+
+        dynamicCommunityData = {};
+        currentCommunityType = null;
+        
+        switchVerificationMethod(null); // Hide verification sections
+        
+        // --- FIX: Disable method buttons ---
+        photoVerifyBtn.disabled = true;
+        secretCodeVerifyBtn.disabled = true;
+        // ---------------------------------
+        
+        validateFormAndEnableVerify(); // Disable submit buttons
     }
-    validateFormAndEnableVerify();
-}
 
-function populateApartmentDropdowns() {
-    towerSelect.innerHTML = '<option value="">Select...</option>';
-    floorSelect.innerHTML = '<option value="">Select...</option>';
-    flatIdSelect.innerHTML = '<option value="">Select...</option>';
-    floorSelect.disabled = true;
-    flatIdSelect.disabled = true;
-    const towers = Object.keys(dynamicCommunityData).sort();
-    for (const tower of towers) {
-        towerSelect.innerHTML += `<option value="${tower}">${tower}</option>`;
-    }
-    if (towers.length === 1) {
-        towerSelect.value = towers[0];
-        towerSelect.disabled = true;
-        towerSelect.dispatchEvent(new Event('change'));
-    }
-}
-
-function populateLaneDropdowns() {
-    laneSelect.innerHTML = '<option value="">Select...</option>';
-    houseNumberSelect.innerHTML = '<option value="">Select...</option>';
-    houseNumberSelect.disabled = true;
-    const lanes = Object.keys(dynamicCommunityData).sort();
-    for (const lane of lanes) {
-        laneSelect.innerHTML += `<option value="${lane}">${lane}</option>`;
-    }
-    laneSelect.disabled = false;
-}
-
-function getUserId() {
-    let id = '';
-    const society = societyInput.value.trim();
-    if (currentCommunityType === 'apartment') {
-        if (towerSelect.value && floorSelect.value && flatIdSelect.value) {
-            id = `${society}-${towerSelect.value}-${floorSelect.value}-${flatIdSelect.value}`;
-        }
-    } else if (currentCommunityType === 'individual_lanes') {
-        if (laneSelect.value && houseNumberSelect.value) {
-            id = `${society}-${laneSelect.value}-${houseNumberSelect.value}`;
-        }
-    } else if (currentCommunityType === 'individual_no_lanes') {
-        if (flatNoLanesSelect.value) {
-            id = `${society}-${flatNoLanesSelect.value}`;
-        }
-    }
-    return id;
-}
-
-function areDetailsSelected() {
-    const society = societyInput.value.trim();
-    if (!society) return false;
-    if (currentCommunityType === 'apartment') return towerSelect.value && floorSelect.value && flatIdSelect.value;
-    if (currentCommunityType === 'individual_lanes') return laneSelect.value && houseNumberSelect.value;
-    if (currentCommunityType === 'individual_no_lanes') return flatNoLanesSelect.value;
-    return false;
-}
-
-function displayMessage(type, message, duration = 4000) {
-    messageDisplayBox.className = `message-box message-${type} show`;
-    messageDisplayBox.innerHTML = message;
-    if (messageDisplayBox.timeout) clearTimeout(messageDisplayBox.timeout);
-    messageDisplayBox.timeout = setTimeout(() => {
-        messageDisplayBox.classList.remove('show');
-        setTimeout(() => messageDisplayBox.className = 'message-box hidden', 300);
-    }, duration);
-}
-
-function showGlobalOverlay(message, isError = false) {
-    globalOverlayMessage.textContent = message;
-    globalOverlayMessage.className = 'global-overlay-message show';
-    globalOverlayMessage.style.backgroundColor = isError ? 'rgba(220,38,38,0.7)' : 'rgba(0,0,0,0.6)';
-}
-
-function hideGlobalOverlay() {
-    globalOverlayMessage.classList.remove('show');
-}
-
-function validateFormAndEnableVerify() {
-    const idSelected = areDetailsSelected();
-    const secretCodeEntered = secretCodeInput.value.trim().length > 0;
-    if (currentVerificationMethod === 'photo') {
-        verifyPhotoButton.disabled = !idSelected || currentStream === null;
-        submitSecretCodeButton.disabled = true;
-    } else if (currentVerificationMethod === 'secret_code') {
-        submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered;
-        verifyPhotoButton.disabled = true;
-    } else {
-        verifyPhotoButton.disabled = true;
-        submitSecretCodeButton.disabled = true;
-    }
-}
-
-function switchVerificationMethod(method) {
-    currentVerificationMethod = method;
-    photoVerifyBtn.classList.remove('active', 'btn-green');
-    photoVerifyBtn.classList.add('btn-secondary');
-    secretCodeVerifyBtn.classList.remove('active', 'btn-green');
-    secretCodeVerifyBtn.classList.add('btn-secondary');
-    photoSection.classList.remove('active');
-    secretCodeSection.classList.remove('active');
-
-    if (!method) {
-        stopCamera();
-        validateFormAndEnableVerify();
-        return;
-    }
-    if (method === 'photo') {
-        if (!CAMERA_MODE_ENABLED) { console.log("Camera disabled → ignoring photo mode"); return; }
-        photoVerifyBtn.classList.add('active', 'btn-green');
-        photoSection.classList.add('active');
-        stopCamera();
-    } else if (method === 'secret_code') {
-        secretCodeVerifyBtn.classList.add('active', 'btn-green');
-        secretCodeSection.classList.add('active');
-        stopCamera();
-    }
-    validateFormAndEnableVerify();
-}
-
-// --------- PHOTO SECTION SAFETY GUARD ----------
-async function verifyPhoto() {
-    if (!CAMERA_MODE_ENABLED) {
-        console.log("Camera mode disabled → skipping verifyPhoto()");
-        return;
-    }
-    // existing verifyPhoto logic untouched
-}
-// ------------------------------------------------
-
-// --- SECRET CODE VERIFICATION (core working path) ---
-document.addEventListener('DOMContentLoaded', () => {
-
-    window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
-
-    photoVerifyBtn.disabled = true;
-    secretCodeVerifyBtn.disabled = true;
-
-    societyInput.addEventListener('blur', fetchSocietyDetails);
-    document.getElementById('validateSocietyBtn').addEventListener('click', fetchSocietyDetails);
-    societyInput.addEventListener('keyup', e => { if (e.key === 'Enter') societyInput.blur(); });
-
-    // --- secret code verification ---
-    submitSecretCodeButton.addEventListener('click', async () => {
-        if (!areDetailsSelected() || !secretCodeInput.value) {
-            alert("All fields are required.");
+    /**
+     * Fetches society details from the backend and populates the UI.
+     */
+    async function fetchSocietyDetails() {
+        const societyName = societyInput.value.trim();
+        if (!societyName) {
+            resetDynamicFields();
             return;
         }
-        let payload = {
-            society: societyInput.value.trim(),
-            secret_code: secretCodeInput.value,
-            mode: document.getElementById('mode_check').checked ? 'check' : 'vote'
-        };
 
-        if (currentCommunityType === 'apartment') {
-            let flatValue = flatIdSelect.value;
-            if (flatValue.length === 3) flatValue = "0" + flatValue;
-            payload.tower = towerSelect.value;
-            payload.flat = flatValue;
-        } else if (currentCommunityType === 'individual_lanes') {
-            payload.lane = laneSelect.value;
-            payload.house = houseNumberSelect.value;
-        } else if (currentCommunityType === 'individual_no_lanes') {
-            payload.flat = flatNoLanesSelect.value;
-        }
-
-        showGlobalOverlay("Verifying...");
-        submitSecretCodeButton.disabled = true;
-
+        showGlobalOverlay("{{ languages[selected_language_code]['message_fetchingSocietyDetails'] if selected_language_code and languages[selected_language_code].message_fetchingSocietyDetails else 'Fetching society details...' }}");
+        
         try {
-            const response = await fetch('/api/verify_code', {
+            const response = await fetch('/api/get_society_details', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ society: societyName })
             });
+
+            const data = await response.json();
+
+            // --- THIS IS THE CORRECT LOGIC FOR THIS FUNCTION ---
+            if (data.success) {
+                hideGlobalOverlay();
+                dynamicCommunityData = data.community_data;
+                currentCommunityType = data.community_type;
+                
+                // --- FIX: Enable method buttons ---
+                photoVerifyBtn.disabled = true; // Camera disabled, so this remains disabled
+                secretCodeVerifyBtn.disabled = false;
+                // ----------------------------------
+                
+                populateDynamicFields();
+                document.getElementById('dynamic_form_fields').classList.remove('hidden-fields');
+            } else {
+                hideGlobalOverlay();
+                alert(data.message);
+                resetDynamicFields();
+            }
+            // --- END OF CORRECT LOGIC ---
+
+        } catch (err) {
+            console.error("Error fetching society details:", err);
+            hideGlobalOverlay();
+            alert("{{ languages[selected_language_code]['alert_errorFetchingSocietyDetails'] if selected_language_code and languages[selected_language_code].alert_errorFetchingSocietyDetails else 'An error occurred while fetching society details.' }}");
+            resetDynamicFields();
+        }
+    }
+
+    /**
+     * Shows the correct dropdowns based on the fetched community type.
+     */
+    function populateDynamicFields() {
+        // Hide all dynamic groups first
+        apartmentFieldGroup.classList.add('hidden-fields');
+        laneHouseFields.classList.add('hidden-fields');
+        document.getElementById('no_lane_fields').classList.add('hidden-fields');
+
+        // Use trim() to be safe
+        const cleanType = currentCommunityType ? currentCommunityType.trim() : '';
+
+        if (cleanType === 'apartment') {
+            apartmentFieldGroup.classList.remove('hidden-fields');
+            populateApartmentDropdowns();
+        } else if (cleanType === 'individual_lanes') {
+            laneHouseFields.classList.remove('hidden-fields');
+            populateLaneDropdowns();
+        } else if (cleanType === 'individual_no_lanes') {
+            document.getElementById('no_lane_fields').classList.remove('hidden-fields');
+            flatNoLanesSelect.innerHTML = '<option value="">Select...</option>';
+            if (dynamicCommunityData && dynamicCommunityData.flats) {
+                for (const flat of dynamicCommunityData.flats) {
+                    flatNoLanesSelect.innerHTML += `<option value="${flat}">${flat}</option>`;
+                }
+            }
+            flatNoLanesSelect.disabled = false;
+        }
+        
+        validateFormAndEnableVerify();
+    }
+
+    /**
+     * Populates the Tower dropdown for apartments.
+     */
+    function populateApartmentDropdowns() {
+        towerSelect.innerHTML = '<option value="">Select...</option>';
+        floorSelect.innerHTML = '<option value="">Select...</option>';
+        flatIdSelect.innerHTML = '<option value="">Select...</option>';
+        floorSelect.disabled = true;
+        flatIdSelect.disabled = true;
+
+        if (!dynamicCommunityData || Object.keys(dynamicCommunityData).length === 0) {
+            console.error("No apartment data found for this society.");
+            return;
+        }
+
+        const towers = Object.keys(dynamicCommunityData).sort();
+        for (const tower of towers) {
+            towerSelect.innerHTML += `<option value="${tower}">${tower}</option>`;
+        }
+
+        if (towers.length === 1) {
+            towerSelect.value = towers[0];
+            towerSelect.disabled = true;
+            towerSelect.dispatchEvent(new Event('change'));
+        } else {
+            towerSelect.disabled = false;
+        }
+    }
+
+    /**
+     * Populates the Lane dropdown for individual homes with lanes.
+     */
+    function populateLaneDropdowns() {
+        laneSelect.innerHTML = '<option value="">Select...</option>';
+        houseNumberSelect.innerHTML = '<option value="">Select...</option>';
+        houseNumberSelect.disabled = true;
+
+        if (!dynamicCommunityData || Object.keys(dynamicCommunityData).length === 0) {
+            console.error("No lane data found for this society.");
+            return;
+        }
+
+        const lanes = Object.keys(dynamicCommunityData).sort();
+        for (const lane of lanes) {
+            laneSelect.innerHTML += `<option value="${lane}">${lane}</option>`;
+        }
+        laneSelect.disabled = false;
+    }
+
+
+    function getUserId() {
+        let id = '';
+        const society = societyInput.value.trim();
+        
+        if (currentCommunityType === 'apartment') {
+            if (towerSelect.value && floorSelect.value && flatIdSelect.value) {
+                id = `${society}-${towerSelect.value}-${floorSelect.value}-${flatIdSelect.value}`;
+            }
+        } else if (currentCommunityType === 'individual_lanes') {
+            if (laneSelect.value && houseNumberSelect.value) {
+                id = `${society}-${laneSelect.value}-${houseNumberSelect.value}`;
+            }
+        } else if (currentCommunityType === 'individual_no_lanes') {
+             if (flatNoLanesSelect.value) { // Check if a value is selected
+                id = `${society}-${flatNoLanesSelect.value}`;
+            }
+        }
+        return id;
+    }
+
+    /**
+     * Checks if all required fields for the current community type are selected.
+     */
+    function areDetailsSelected() {
+        const society = societyInput.value.trim();
+        if (!society) return false;
+
+        if (currentCommunityType === 'apartment') {
+            return towerSelect.value && floorSelect.value && flatIdSelect.value && society;
+        } else if (currentCommunityType === 'individual_lanes') {
+            return laneSelect.value && houseNumberSelect.value && society;
+        } else if (currentCommunityType === 'individual_no_lanes') {
+            return flatNoLanesSelect.value && society;
+        }
+        return false; // Default
+    }
+
+    function displayMessage(type, message, duration = 4000) {
+        messageDisplayBox.className = `message-box message-${type} show`;
+        messageDisplayBox.innerHTML = message;
+        if (messageDisplayBox.timeout) {
+            clearTimeout(messageDisplayBox.timeout);
+        }
+        messageDisplayBox.timeout = setTimeout(() => {
+            messageDisplayBox.classList.remove('show');
+            setTimeout(() => {
+                messageDisplayBox.className = 'message-box hidden';
+            }, 300);
+        }, duration);
+    }
+
+    function showGlobalOverlay(message, isError = false) {
+        globalOverlayMessage.textContent = message;
+        globalOverlayMessage.className = 'global-overlay-message show';
+        globalOverlayMessage.style.backgroundColor = isError ? 'rgba(220, 38, 38, 0.7)' : 'rgba(0, 0, 0, 0.6)';
+    }
+
+    function hideGlobalOverlay() {
+        globalOverlayMessage.classList.remove('show');
+    }
+
+    /**
+     * Enables/disables verification buttons based on form completion.
+     */
+    function validateFormAndEnableVerify() {
+        const idSelected = areDetailsSelected();
+        const secretCodeEntered = secretCodeInput.value.trim().length > 0; // NEW CHECK
+
+        if (currentVerificationMethod === 'photo') {
+            // *** CAMERA LOGIC MODIFIED/REMOVED ***
+            // verifyPhotoButton.disabled = !idSelected || currentStream === null; 
+            verifyPhotoButton.disabled = true; // Camera is no longer used
+            submitSecretCodeButton.disabled = true;
+        } else if (currentVerificationMethod === 'secret_code') {
+            // Check if details are selected AND a code is entered
+            submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; // MODIFIED LINE
+            verifyPhotoButton.disabled = true;
+        } else {
+            // No method selected
+            verifyPhotoButton.disabled = true;
+            submitSecretCodeButton.disabled = true;
+        }
+    }
+
+    function switchVerificationMethod(method) {
+        currentVerificationMethod = method;
+
+        photoVerifyBtn.classList.remove('active', 'btn-green');
+        photoVerifyBtn.classList.add('btn-secondary');
+        secretCodeVerifyBtn.classList.remove('active', 'btn-green');
+        secretCodeVerifyBtn.classList.add('btn-secondary');
+
+        // Removed photoSection.classList.remove('active'); // Assuming this is related to camera UI
+        secretCodeSection.classList.remove('active');
+        
+        if (!method) { // Call to hide sections
+            // *** CAMERA LOGIC REMOVED ***
+            // stopCamera(); 
+            validateFormAndEnableVerify();
+            return;
+        }
+
+        if (method === 'photo') {
+            photoVerifyBtn.classList.add('active', 'btn-green');
+            photoVerifyBtn.classList.remove('btn-secondary');
+            // photoSection.classList.add('active'); // Removed as photo section is gone
+            // *** CAMERA LOGIC REMOVED ***
+            // stopCamera(); // Ensure camera is off before starting
+        } else if (method === 'secret_code') {
+            secretCodeVerifyBtn.classList.add('active', 'btn-green');
+            secretCodeVerifyBtn.classList.remove('btn-secondary');
+            secretCodeSection.classList.add('active');
+            // *** CAMERA LOGIC REMOVED ***
+            // stopCamera();
+        }
+
+        validateFormAndEnableVerify();
+    }
+
+    // *** verifyPhoto FUNCTION COMPLETELY REMOVED AS PER REQUIREMENT ***
+    // *** Camera setup/cleanup functions (startCamera, stopCamera, captureFrame) are also removed/commented out ***
+
+
+    /**
+     * Handles the logic for resetting the user's secret code.
+     */
+    async function resetSecretCode() {
+        if (!validateNewCode()) {
+            alert("New codes do not match or are empty.");
+            return;
+        }
+
+        const newCode = newSecretCodeInput.value.trim();
+        const confirmCode = confirmNewSecretCodeInput.value.trim();
+        const userId = getUserId(); 
+        
+        if (!userId) {
+            alert("Error: Could not determine user ID for reset.");
+            return;
+        }
+
+        submitNewCodeButton.disabled = true;
+        showGlobalOverlay("{{ languages[selected_language_code]['message_resettingCode'] if selected_language_code and languages[selected_language_code].message_resettingCode else 'Resetting code...' }}");
+
+        try {
+            const response = await fetch('/api/reset_code', { // <-- New API endpoint required
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    new_code: newCode,
+                    confirm_code: confirmCode
+                })
+            });
+
             const data = await response.json();
             hideGlobalOverlay();
 
             if (data.success) {
-                if (data.needs_reset) {
-                    showResetDialog();
-                    secretCodeInput.value = '';
-                    return;
-                }
-
-                const isCheckMode = document.getElementById('mode_check').checked;
-                const timestamp = data.voted_at;
-                const userId = getUserId();
-
-                if (isCheckMode) {
-                    if (timestamp) alert(`Vote Record Found: ${timestamp}`);
-                    else alert("No voting record found.");
-                } else {
-                    if (timestamp) {
-                        handleAlreadyVoted(userId);
-                    } else {
-                        const redirectUrl = data.redirect_url || "/ballot.html";
-                        console.log("Redirecting to:", redirectUrl);
-                        showGlobalOverlay("Verification Successful. Loading ballot...");
-                        setTimeout(() => { window.location.replace(redirectUrl); }, 1000);
-                    }
-                }
+                hideResetDialog();
+                displayMessage('success', data.message || "Code reset successfully! Please log in with your new code.", 5000);
+                // Clear the main secret code input to force re-entry
+                secretCodeInput.value = ''; 
+                validateFormAndEnableVerify();
             } else {
-                alert(data.message);
+                displayMessage('error', data.message || "Code reset failed.", 5000);
             }
-        } catch (err) {
-            console.error("Secret code verification error:", err);
+
+        } catch (error) {
+            console.error('Code reset error:', error);
             hideGlobalOverlay();
-            alert("Server error during verification.");
+            displayMessage('error', "{{ languages[selected_language_code]['alert_errorResetCode'] if selected_language_code and languages[selected_language_code].alert_errorResetCode else 'A server error occurred during code reset.' }}", 5000);
         } finally {
-            submitSecretCodeButton.disabled = false;
-            validateFormAndEnableVerify();
+            submitNewCodeButton.disabled = false;
         }
-    });
-
-    secretCodeVerifyBtn.addEventListener('click', () => {
-        if (areDetailsSelected()) switchVerificationMethod('secret_code');
-        else alert("Please select details first.");
-    });
-
-    secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
-
-    if (CAMERA_MODE_ENABLED) {
-        startCameraButton.addEventListener('click', startCamera);
-        stopCameraButton.addEventListener('click', stopCamera);
-        verifyPhotoButton.addEventListener('click', verifyPhoto);
-    } else {
-        console.log("Camera mode disabled — no camera event listeners attached.");
     }
 
-    newSecretCodeInput.addEventListener('input', validateNewCode);
-    confirmNewSecretCodeInput.addEventListener('input', validateNewCode);
-    submitNewCodeButton.addEventListener('click', resetSecretCode);
-});
+    document.addEventListener('DOMContentLoaded', () => {
+    
+        // ✅ CRITICAL FIX: Forces a fresh page load when user navigates back (BFcache prevention).
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                location.reload(); 
+            }
+        });
 
-// Prevent back nav caching
-window.onload = function () {
-    history.pushState(null, null, location.href);
-    window.addEventListener('popstate', e => history.pushState(null, null, location.href));
-};
+        // --- FIX: Disable method buttons on load ---
+        photoVerifyBtn.disabled = true;
+        secretCodeVerifyBtn.disabled = true;
+        // -----------------------------------------
+
+        // --- Listen for society input blur ---
+        societyInput.addEventListener('blur', fetchSocietyDetails);
+        document.getElementById('validateSocietyBtn').addEventListener('click', fetchSocietyDetails); // Added listener for button
+        societyInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                societyInput.blur();
+            }
+        });
+
+
+        // --- DYNAMIC DROPDOWN LISTENERS ---
+
+        towerSelect.addEventListener('change', () => {
+            floorSelect.innerHTML = '<option value="">Select...</option>';
+            flatIdSelect.innerHTML = '<option value="">Select...</option>';
+            flatIdSelect.disabled = true;
+            const selectedTower = towerSelect.value;
+            if (selectedTower && dynamicCommunityData[selectedTower]) {
+                for (const floor of Object.keys(dynamicCommunityData[selectedTower]).sort()) {
+                    floorSelect.innerHTML += `<option value="${floor}">${floor}</option>`;
+                }
+                floorSelect.disabled = false;
+            }
+            validateFormAndEnableVerify();
+        });
+
+        floorSelect.addEventListener('change', () => {
+            flatIdSelect.innerHTML = '<option value="">Select...</option>';
+            const selectedTower = towerSelect.value;
+            const selectedFloor = floorSelect.value;
+            if (selectedFloor && dynamicCommunityData[selectedTower] && dynamicCommunityData[selectedTower][selectedFloor]) {
+                for (const flat of dynamicCommunityData[selectedTower][selectedFloor]) {
+                    flatIdSelect.innerHTML += `<option value="${flat}">${flat}</option>`;
+                }
+                flatIdSelect.disabled = false;
+            }
+            validateFormAndEnableVerify();
+        });
+        
+        laneSelect.addEventListener('change', () => {
+            houseNumberSelect.innerHTML = '<option value="">Select...</option>';
+            const selectedLane = laneSelect.value;
+            if (selectedLane && dynamicCommunityData[selectedLane]) {
+                 // *** FIX: Sort houses as well ***
+                 for (const house of dynamicCommunityData[selectedLane].slice().sort()) {
+                    houseNumberSelect.innerHTML += `<option value="${house}">${house}</option>`;
+                }
+                houseNumberSelect.disabled = false;
+            }
+            validateFormAndEnableVerify();
+        });
+
+        flatIdSelect.addEventListener('change', validateFormAndEnableVerify);
+        houseNumberSelect.addEventListener('change', validateFormAndEnableVerify);
+        flatNoLanesSelect.addEventListener('change', validateFormAndEnableVerify);
+
+        // --- VERIFICATION BUTTON LISTENERS (MODIFIED) ---
+
+        submitSecretCodeButton.addEventListener('click', async () => {
+            if (!areDetailsSelected() || !secretCodeInput.value) {
+                alert("{{ languages[selected_language_code]['alert_selectDetailsAndCode'] if selected_language_code and languages[selected_language_code].alert_selectDetailsAndCode else 'Error: All fields are required.' }}");
+                return;
+            }
+
+            let payload = {
+                society: societyInput.value.trim(),
+                secret_code: secretCodeInput.value,
+                mode: document.getElementById('mode_check').checked ? 'check' : 'vote' // Added mode to payload for code verification
+            };
+
+            // Add address details to payload for backend lookup consistency
+            if (currentCommunityType === 'apartment') {
+                payload.tower = towerSelect.value;
+                payload.flat = flatIdSelect.value;
+            } else if (currentCommunityType === 'individual_lanes') {
+                payload.lane = laneSelect.value;
+                payload.house = houseNumberSelect.value;
+            } else if (currentCommunityType === 'individual_no_lanes') {
+                payload.flat = flatNoLanesSelect.value;
+            }
+
+            submitSecretCodeButton.disabled = true;
+            showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingCode'] if selected_language_code and languages[selected_language_code].message_verifyingCode else 'Verifying code...' }}");
+
+            try {
+                const response = await fetch('/api/verify_code', { // Assuming this is the correct Flask endpoint for code verification
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                hideGlobalOverlay();
+
+                if (data.success) {
+                    isVerified = true; // Mark as verified for this session
+                    const isCheckMode = document.getElementById('mode_check').checked;
+                    const timestamp = data.voted_at;
+                    const userId = getUserId();
+
+                    if (isCheckMode) {
+                         if (timestamp) {
+                             const proofMessage = `
+                                {{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}
+                             `;
+                             alert(proofMessage);
+                         } else {
+                             alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
+                         }
+                         submitSecretCodeButton.disabled = false; // Re-enable for next check
+                         return;
+                    }
+                    
+                    // VOTE MODE (NOT CHECK MODE)
+                    if (timestamp) {
+                        console.log("Already voted -> handleAlreadyVoted");
+                        handleAlreadyVoted(userId);
+                    } else {
+                        // *** *** *** *** CRITICAL FIX: LOAD ballot.html *** *** *** ***
+                        showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
+                        window.location.replace(data.redirect_url || "/ballot.html"); 
+                        // *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+                        return;
+                    }
+                } else {
+                    alert(data.message || "{{ languages[selected_language_code]['alert_verificationFailed'] if selected_language_code and languages[selected_language_code].alert_verificationFailed else 'Verification failed.' }}");
+                }
+            } catch (error) {
+                console.error('Secret Code verification error:', error);
+                alert("{{ languages[selected_language_code]['alert_errorVerifyingCode'] if selected_language_code and languages[selected_language_code].alert_errorVerifyingCode else 'Error during code verification.' }}");
+            } finally {
+                if (!isVerified) submitSecretCodeButton.disabled = false;
+            }
+        });
+
+
+        // --- OTHER LISTENERS ---
+        
+        // Reset Code Dialog Listeners
+        document.getElementById('resetCodeBtn').addEventListener('click', () => {
+            if (!areDetailsSelected()) {
+                alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please select all details first.' }}");
+                return;
+            }
+            showResetDialog();
+        });
+        document.getElementById('closeResetDialog').addEventListener('click', hideResetDialog);
+        newSecretCodeInput.addEventListener('input', validateNewCode);
+        confirmNewSecretCodeInput.addEventListener('input', validateNewCode);
+        submitNewCodeButton.addEventListener('click', resetSecretCode);
+        
+        // Initialize the state (ensures buttons are disabled if no society is entered)
+        resetDynamicFields(); 
+        validateFormAndEnableVerify(); // Set initial state for buttons
+
+        // Add listener for secretCodeInput to enable submit button
+        secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
+    });
 </script>
 
   <footer class="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-lg text-gray-500 select-none pointer-events-auto z-50">
