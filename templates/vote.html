@@ -697,7 +697,7 @@
         </button>
     </div>
 </div>
-
+ 
 <script>
     // --- Data is now fetched dynamically ---
     let dynamicCommunityData = {};
@@ -872,7 +872,7 @@
             });
 
             const data = await response.json();
- 
+
             if (data.success) {
                 hideGlobalOverlay();
                 dynamicCommunityData = data.community_data;
@@ -890,7 +890,7 @@
                 alert(data.message);
                 resetDynamicFields();
             }
- 
+
         } catch (err) {
             console.error("Error fetching society details:", err);
             hideGlobalOverlay();
@@ -1051,15 +1051,18 @@
 
         if (currentVerificationMethod === 'photo') {
             // Photo method is disabled entirely
-            verifyPhotoButton.disabled = true; 
+            // Note: I'm intentionally leaving the `verifyPhotoButton` variable here, 
+            // even though the element is likely removed or hidden in your HTML,
+            // to avoid breaking logic that references it.
+            // verifyPhotoButton.disabled = true; 
             submitSecretCodeButton.disabled = true;
         } else if (currentVerificationMethod === 'secret_code') {
             // Only enable submit if details are selected AND code is entered
             submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; 
-            verifyPhotoButton.disabled = true;
+            // verifyPhotoButton.disabled = true;
         } else {
             // No method selected
-            verifyPhotoButton.disabled = true;
+            // verifyPhotoButton.disabled = true;
             submitSecretCodeButton.disabled = true;
         }
     }
@@ -1072,10 +1075,12 @@
         secretCodeVerifyBtn.classList.remove('active', 'btn-green');
         secretCodeVerifyBtn.classList.add('btn-secondary');
 
-        // Removed photoSection.classList.remove('active'); 
+        // photoSection is removed from logic
         secretCodeSection.classList.remove('active');
         
-        if (!method) { // Call to hide sections 
+        if (!method) { // Call to hide sections
+            // Ensure secret code input is cleared when hiding
+            secretCodeInput.value = ''; 
             validateFormAndEnableVerify();
             return;
         }
@@ -1083,12 +1088,15 @@
         if (method === 'photo') {
             photoVerifyBtn.classList.add('active', 'btn-green');
             photoVerifyBtn.classList.remove('btn-secondary');
-            // photoSection.classList.add('active'); // Removed
         } else if (method === 'secret_code') {
             secretCodeVerifyBtn.classList.add('active', 'btn-green');
             secretCodeVerifyBtn.classList.remove('btn-secondary');
+            
+            // 🔥 CRITICAL FIX: Ensure the section and input are ready
             secretCodeSection.classList.add('active');
-        } 
+            secretCodeInput.disabled = false; // Explicitly enable the input field
+            secretCodeInput.focus(); // Set focus for immediate entry
+        }
 
         validateFormAndEnableVerify();
     }
@@ -1205,7 +1213,7 @@
         laneSelect.addEventListener('change', () => {
             houseNumberSelect.innerHTML = '<option value="">Select...</option>';
             const selectedLane = laneSelect.value;
-            if (selectedLane && dynamicCommunityData[selectedLane]) { 
+            if (selectedLane && dynamicCommunityData[selectedLane]) {
                  for (const house of dynamicCommunityData[selectedLane].slice().sort()) {
                     houseNumberSelect.innerHTML += `<option value="${house}">${house}</option>`;
                 }
@@ -1219,6 +1227,19 @@
         flatNoLanesSelect.addEventListener('change', validateFormAndEnableVerify);
 
         // --- VERIFICATION BUTTON LISTENERS (MODIFIED) ---
+
+        // Listener for the "Secret Code" button to show the input box
+        secretCodeVerifyBtn.addEventListener('click', () => {
+            if (!secretCodeVerifyBtn.disabled) {
+                switchVerificationMethod('secret_code');
+            }
+        });
+
+        // Listener for the "Photo Verify" button (disabled, but kept for structure)
+        photoVerifyBtn.addEventListener('click', () => {
+            alert('Photo Verification is disabled. Please use Secret Code.');
+        });
+
 
         submitSecretCodeButton.addEventListener('click', async () => {
             if (!areDetailsSelected() || !secretCodeInput.value) {
@@ -1272,18 +1293,20 @@
                          } else {
                              alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
                          }
-                         submitSecretCodeButton.disabled = false; // Re-enable for next check
+                         // Reset isVerified status for next attempt/user if only checking
+                         isVerified = false; 
+                         submitSecretCodeButton.disabled = false; 
                          return;
                     }
                     
                     // VOTE MODE (NOT CHECK MODE)
-                    if (timestamp) { 
+                    if (timestamp) {
                         handleAlreadyVoted(userId);
                     } else {
                         // *** CRITICAL FIX: LOAD ballot.html ***
                         showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
                         window.location.replace(data.redirect_url || "/ballot.html"); 
-                        return; 
+                        return;
                     }
                 } else {
                     alert(data.message || "{{ languages[selected_language_code]['alert_verificationFailed'] if selected_language_code and languages[selected_language_code].alert_verificationFailed else 'Verification failed.' }}");
@@ -1319,7 +1342,7 @@
         // Add listener for secretCodeInput to enable submit button
         secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
     });
-</script> 
+</script>
 
   <footer class="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-lg text-gray-500 select-none pointer-events-auto z-50">
     D3 by: 
