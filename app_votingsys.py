@@ -25,28 +25,22 @@ def compare_codes(entered_code, stored_code):
 
 # --- DB helper ---
 def get_db():
+    """Establishes a connection to the PostgreSQL database using environment variables, 
+    including SSL mode for cloud services like Neon."""
     try:
-        # Fetch database connection details from environment variables
-        dbname = os.getenv("DB_DBNAME")
-        user = os.getenv("DB_USER")
-        password = os.getenv("DB_PASSWORD")
-        host = os.getenv("DB_HOST")
-        port = os.getenv("DB_PORT")
-        
-        # Log the connection details to verify
-        app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
-
-        # Attempt DB connection
-        return psycopg2.connect(
-            dbname=dbname,
-            user=user,
-            password=password,
-            host=host,
-            port=port
+        conn = psycopg2.connect(
+            # 🚨 FIX: Using the correct ENV variable name (DB_NAME)
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT"),
+            # 🚨 CRITICAL FIX: Add sslmode='require' here
+            sslmode='require' 
         )
-    except Exception as e:
-        # Log the error if DB connection fails
-        app.logger.error(f"DB connection error: {e}")
+        return conn
+    except psycopg2.OperationalError as e:
+        app.logger.error(f"Error connecting to PostgreSQL database: {e}")
         return None
     
 # --- Utility: numeric sort ---
@@ -109,7 +103,20 @@ def login():
     if not lang:
         flash("Please select a language first.", "warning")
         return redirect(url_for('select_language'))
-    
+        
+    societies = []
+    conn = get_db()
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                # Assuming 'settings' table has the society_name
+                cur.execute("SELECT DISTINCT society_name FROM settings ORDER BY society_name") 
+                societies = [row[0] for row in cur.fetchall()]
+        except Exception as e:
+            app.logger.error(f"Error fetching societies in /login: {e}")
+        finally:
+            conn.close()
+
     if request.method=="POST":
         flash("Please use verification options.", "info")
         return redirect(url_for('login'))
@@ -117,7 +124,8 @@ def login():
     # If we reach here, lang is the correctly selected language code.
     resp = make_response(render_template(
         "vote.html", 
-        societies=[], 
+        # 🚨 FINAL FIX HERE: Pass the fetched list of societies
+        societies=societies, 
         community_data={}, 
         languages=languages, 
         selected_language_code=lang
