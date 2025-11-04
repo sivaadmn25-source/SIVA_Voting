@@ -14,6 +14,8 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_VOTER_SECRET_KEY", "a_secret_key_for_voter_sessions")
+app.config['SESSION_COOKIE_SECURE'] = True 
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 IST = pytz.timezone('Asia/Kolkata')
 UTC = pytz.utc
 
