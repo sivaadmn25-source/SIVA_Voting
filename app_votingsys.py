@@ -2,55 +2,45 @@ import psycopg2, psycopg2.extras, os, json, traceback
 from flask import Flask, jsonify, request, render_template, session, redirect, url_for, flash, send_from_directory, make_response
 from datetime import datetime
 import pytz
-from language_data import languages
+from language_data import languages # Assuming this file exists
 import base64, io, numpy as np
-from PIL import Image
-#from deepface import DeepFace
+from PIL import Image 
 from dotenv import load_dotenv
-from werkzeug.security import generate_password_hash, check_password_hash # ADDED for hashing
+
+# 🚨 FINAL FIX: Import ProxyFix for cloud deployment session handling
+from werkzeug.middleware.proxy_fix import ProxyFix 
+# 🔒 FINAL FIX: Imported functions for secure password hashing
+from werkzeug.security import generate_password_hash, check_password_hash 
 
 # --- Initialization ---
 load_dotenv()
 
-app = Flask(__name__) 
+app = Flask(__name__)
+# 🚨 CRITICAL FIX 1: APPLY PROXY FIX MIDDLEWARE (Fixes session loss/redirect loop)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_prefix=1) 
+
 app.secret_key = os.getenv("FLASK_VOTER_SECRET_KEY", "a_secret_key_for_voter_sessions")
-IST = pytz.timezone('Asia/Kolkata') 
+# 🚨 CRITICAL FIX 2: Set secure cookie policy for HTTPS deployment
+app.config['SESSION_COOKIE_SECURE'] = True 
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+IST = pytz.timezone('Asia/Kolkata')
 UTC = pytz.utc
 
-# --- CODE COMPARISON FUNCTION (using hashing for security) ---
-def compare_codes(entered_code, stored_hash):
-    """Compares entered plain code against a stored hash."""
-    if stored_hash is None:
+# --- CODE COMPARISON FUNCTION (now using hashing) ---
+def compare_codes(entered_code, stored_code):
+    """Performs hash comparison for code validation."""
+    if stored_code is None:
         return False
-    # Now uses check_password_hash instead of direct string comparison
-    return check_password_hash(stored_hash, entered_code)
-
+    
+    # 🔒 FINAL FIX: Use the secure check_password_hash function
+    try:
+        return check_password_hash(stored_code, entered_code)
+    except Exception as e:
+        # This occurs if the stored code is plaintext or not a valid hash format
+        app.logger.warning(f"Failed check_password_hash comparison (likely plaintext code): {e}")
+        return False 
 # --- DB helper ---
-#def get_db():
-#   try:
-        # Fetch database connection details from environment variables
-#       dbname = os.getenv("DB_DBNAME")
-#       user = os.getenv("DB_USER")
-#       password = os.getenv("DB_PASSWORD")
-#       host = os.getenv("DB_HOST")
-#       port = os.getenv("DB_PORT")
-        
-        # Log the connection details to verify
-#       app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
-#
-#       # Attempt DB connection
-#       return psycopg2.connect(
-#           dbname=dbname,
-#           user=user,
-#           password=password,
-#           host=host,
-#           port=port
-#       )
-#   except Exception as e:
-#       # Log the error if DB connection fails
-#       app.logger.error(f"DB connection error: {e}")
-#       return None
-def get_db():
+def get_db(): 
     """Establishes a connection to the PostgreSQL database using .env credentials."""
     try:
         conn = psycopg2.connect(
@@ -120,7 +110,7 @@ def select_language():
 # --- Login page ---
 @app.route("/login", methods=["GET","POST"])
 def login():
-    # 🛑 THE FIX: Force the user to select a language if session['lang'] is missing.
+    # 🛑 Language check
     lang = session.get('lang', None)
     if not lang:
         flash("Please select a language first.", "warning")
@@ -129,11 +119,25 @@ def login():
     if request.method=="POST":
         flash("Please use verification options.", "info")
         return redirect(url_for('login'))
- 
+    
+    # 🛠️ FINAL FIX: Fetch the list of societies from the database
+    available_societies = []
+    conn = get_db()
+    if conn:
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                # Fetch distinct society names from the settings table
+                cur.execute("SELECT DISTINCT society_name FROM settings ORDER BY society_name")
+                available_societies = [row['society_name'] for row in cur.fetchall()]
+        except Exception as e:
+            app.logger.error(f"Error fetching societies list for login page: {e}")
+        finally:
+            conn.close()
+
     # If we reach here, lang is the correctly selected language code.
     resp = make_response(render_template(
         "vote.html", 
-        societies=[], 
+        societies=available_societies, # ✅ Pass the fetched list to the template
         community_data={}, 
         languages=languages, 
         selected_language_code=lang
@@ -143,7 +147,7 @@ def login():
     resp.headers['Expires'] = '0'
     return resp
 
-# --- API: Get society details ---
+# --- API: Get society details (No changes applied here) ---
 @app.route("/api/get_society_details", methods=["POST"])
 def get_society_details():
     data = request.get_json()
@@ -245,7 +249,7 @@ def get_society_details():
         if conn:
             conn.close()
 
-# --- Verification: Secret Code (MODIFIED) ---
+# --- Verification: Secret Code (FINAL HASHING LOGIC) ---
 @app.route("/api/verify_code", methods=["POST"])
 def verify_code():
     data = request.get_json()
@@ -276,8 +280,7 @@ def verify_code():
             if not sched or not sched['start_time'] or not sched['end_time']:
                 return jsonify({"success": False, "message": "Voting schedule not set"}), 403
 
-            # 2. Fetch Household Record using address components (NOT the code)
-            # Fetch both secret_code and reset_code columns
+            # 2. Fetch Household Record using address components
             query = "SELECT id, secret_code, reset_code, is_admin_blocked, is_vote_allowed, voted_in_cycle, voted_at FROM households WHERE " + " AND ".join(where_clauses)
             cur.execute(query, tuple(params))
             h = cur.fetchone()
@@ -294,21 +297,18 @@ def verify_code():
             is_reset_required = False
             
             # Check 1: Mandatory Reset Case (secret_code set, reset_code is NULL)
-            if voter_secret_code and voter_reset_code is None:
-                # Uses hashing comparison
+            if voter_secret_code and voter_reset_code is None: 
                 if compare_codes(entered_code, voter_secret_code):
                     is_reset_required = True
                     is_valid_code = True 
             
             # Check 2: Verification using User-Set Reset Code (reset_code is primary)
-            elif voter_reset_code:
-                # Uses hashing comparison
+            elif voter_reset_code: 
                 if compare_codes(entered_code, voter_reset_code):
                     is_valid_code = True
             
-            # Check 3: Fallback to Admin Secret Code (Only if no reset_code and we didn't hit case 1)
-            elif voter_secret_code:
-                 # Uses hashing comparison
+            # Check 3: Fallback to Admin Secret Code 
+            elif voter_secret_code: 
                  if compare_codes(entered_code, voter_secret_code):
                     is_valid_code = True
             
@@ -322,16 +322,15 @@ def verify_code():
 
             # --- END TIERED CODE VALIDATION LOGIC ---
             
-            # 3. Standard Pre-checks (Apply to both modes)
+            # 3. Standard Pre-checks
             if h['is_admin_blocked']:
                 return jsonify({"success": False, "message": "Blocked by admin"}), 403
             if not h['is_vote_allowed']:
                 return jsonify({"success": False, "message": "Voting not allowed"}), 403
 
-            # 4. Mode Specific Checks (Voting vs. Checking)
+            # 4. Mode Specific Checks
             proof_timestamp_str = None
-            if h['voted_in_cycle'] == 1 and h.get('voted_at'):
-                # Handle time zone conversion for display
+            if h['voted_in_cycle'] == 1 and h.get('voted_at'): 
                 voted_at = h['voted_at']
                 if voted_at.tzinfo is None:
                     voted_at = pytz.utc.localize(voted_at)
@@ -339,7 +338,7 @@ def verify_code():
                 proof_timestamp_str = voted_time_ist.strftime('%d-%m-%Y %I:%M:%S %p %Z')
 
             if mode == 'vote':
-                # Check voting window
+                # Check voting window (time parsing logic kept as is)
                 try:
                     start_time_raw = sched['start_time']
                     end_time_raw = sched['end_time']
@@ -359,17 +358,14 @@ def verify_code():
                     app.logger.error(f"Date parsing error: {e}")
                     return jsonify({"success": False, "message": "Invalid date format or timezone error"}), 400
 
-                # CRITICAL FIX: Explicitly handle the 'already voted' case before the final success block.
-                if h['voted_in_cycle'] == 1:
-                    # Return success with the timestamp. The JavaScript handles the display.
+                if h['voted_in_cycle'] == 1: 
                     return jsonify({
                         "success": True, 
                         "voted_at": proof_timestamp_str,
                         "redirect_url": url_for('ballot') 
                     })
 
-            # 5. Success Response
-            # This is the main success path (Code valid, ready to vote/check).
+            # 5. Success Response 
             session['household_id'] = h['id']
             session['society_name'] = society
             
@@ -387,7 +383,7 @@ def verify_code():
         if conn:
             conn.close()
 
-# --- New API: Reset Code ---
+# --- New API: Reset Code (FINAL HASHING LOGIC) ---
 @app.route('/api/reset_code', methods=['POST'])
 def reset_code():
     data = request.get_json()
@@ -409,7 +405,7 @@ def reset_code():
         return jsonify({"success": False, "message": "DB connection error"}), 500
 
     try:
-        # Re-parse user_id components from the string
+        # Re-parse user_id components from the string (logic kept as is)
         parts = user_id.split('-')
         if len(parts) < 2:
             return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
@@ -432,12 +428,11 @@ def reset_code():
         else:
              return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
         
-        # ⭐ HASH THE NEW CODE BEFORE STORING ⭐
-        hashed_code = generate_password_hash(new_code)
-
-        # Update the database: Set the new HASHED code into 'reset_code'
+        # 🔒 FINAL FIX: Hash the new code before storing it
+        hashed_code = generate_password_hash(new_code) 
+        
         update_query = "UPDATE households SET reset_code=%s WHERE " + " AND ".join(where_clauses)
-        update_params = [hashed_code] + params # Hashed code is stored
+        update_params = [hashed_code] + params # Pass the hash to the query
         
         cur = conn.cursor()
         cur.execute(update_query, tuple(update_params))
@@ -458,67 +453,12 @@ def reset_code():
         if conn:
             conn.close()
 
-# --- Verification: Face ---
+# --- Verification: Face (Placeholder kept as is) ---
 @app.route("/api/verify_face", methods=["POST"])
-def verify_face():
-#   data=request.get_json()
-#   society=data.get('society'); tower, flat, lane, house = data.get('tower'), data.get('flat'), data.get('lane'), data.get('house')
-#   image_data=data.get('image_data')
-#   if not society or not image_data: return jsonify({"verified":False,"message":"Society and image required"}),400
-#   conn=get_db()
-#   if not conn: return jsonify({"verified":False,"message":"DB connection error"}),500
-#   try:
-#       with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-#           # Voting schedule check
-#           cur.execute("SELECT start_time,end_time FROM voting_schedule WHERE society_name=%s",(society,))
-#           sched=cur.fetchone()
-#           start_time=datetime.fromisoformat(sched['start_time'].replace('Z','+00:00'))
-#           end_time=datetime.fromisoformat(sched['end_time'].replace('Z','+00:00'))
-#           if not (start_time<=datetime.now(pytz.utc)<end_time): return jsonify({"verified":False,"message":"Voting is closed"})
-#
-#           query="SELECT * FROM households WHERE society_name=%s AND face_recognition_image IS NOT NULL"
-#           params=[society]
-#           if tower and flat: query+=" AND tower=%s AND flat=%s"; params.extend([tower,flat])
-#           elif lane and house: query+=" AND tower=%s AND flat=%s"; params.extend([lane,house])
-#           elif flat: query+=" AND flat=%s"; params.extend([flat])
-#           elif not (tower or flat or lane or house): query+=" AND tower IS NULL AND flat IS NULL AND lane IS NULL AND house_number IS NULL"
-#           else: return jsonify({"verified":False,"message":"Incomplete household details"}),400
-#
-#           cur.execute(query,tuple(params))
-#           row=cur.fetchone()
-#           if not row: return jsonify({"verified":False,"message":"No face record found"})
-#           if row['voted_in_cycle']==1: return jsonify({"verified":False,"message":"Already voted"})
-#           if row['is_admin_blocked']: return jsonify({"verified":False,"message":"Blocked"})
-#           if not row['is_vote_allowed']: return jsonify({"verified":False,"message":"Voting not allowed"})
-#
-#           # Decode live image
-#           _,encoded=image_data.split(",",1) if "," in image_data else (None,image_data)
-#           live_np=np.array(Image.open(io.BytesIO(base64.b64decode(encoded))).convert('RGB'))
-#           live_emb=DeepFace.represent(img_path=live_np,model_name='Facenet',enforce_detection=True)[0]['embedding']
-#           stored_emb=json.loads(row['face_recognition_image'])
-#           verified=DeepFace.verify(img1_path=live_emb,img2_path=stored_emb,model_name='Facenet',distance_metric='cosine')['verified']
-#
-#           if verified:
-#               session['household_id']=row['id']
-#               session['society_name']=society
-#               proof_timestamp_str = None
-#               if row['voted_in_cycle'] == 1 and row['voted_at']:
-#                   voted_time_ist = row['voted_at'].astimezone(IST)
-#                   proof_timestamp_str = voted_time_ist.strftime('%d-%m-%Y %I:%M:%S %p %Z')
-#               return jsonify({"verified":True,"message":"Verification successful","redirect_url":url_for('ballot')})
-#           else:
-#               return jsonify({"verified":False,"message":"Face not recognized"})
-#
-#   except ValueError:
-#       return jsonify({"verified":False,"message":"No face detected"})
-#   except Exception as e:
-#       app.logger.error(f"Face verification error: {e}",exc_info=True)
-#       return jsonify({"verified":False,"message":"Server error"}),500
-#   finally:
-#       if conn: conn.close()
+def verify_face(): 
     return jsonify({"verified": False, "message": "Face verification temporarily disabled"}), 200
 
-# --- Ballot page ---
+# --- Ballot page (Logic kept as is) ---
 @app.route("/ballot")
 def ballot():
     if "household_id" not in session:
@@ -552,7 +492,7 @@ def ballot():
     resp.headers['Expires']='0'
     return resp
 
-# --- Submit vote ---
+# --- Submit vote (Logic kept as is) ---
 @app.route("/submit_vote",methods=["POST"])
 def submit_vote():
     if "household_id" not in session: return jsonify({"success":False,"message":"Session expired"}),401
@@ -594,4 +534,4 @@ def submit_vote():
 
 # --- Main ---
 if __name__=='__main__':
-    app.run(port=5001,debug=False)
+    app.run(port=5001,debug=False) 
