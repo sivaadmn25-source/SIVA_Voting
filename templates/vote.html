@@ -1223,8 +1223,8 @@
                         handleAlreadyVoted(userId);
                     } else {
                         showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
- 
-                            window.location.replace(data.redirect_url); 
+                        window.location.replace(data.redirect_url); 
+                        return;
                     } 
                 }
             } else {
@@ -1491,7 +1491,7 @@
 //        (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(e.key.toUpperCase())) ||
 //        (e.ctrlKey && e.key.toUpperCase() === "U")
 //        ) e.preventDefault();
-//    }); 
+ //   }); 
 
 </script>
   <footer class="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-lg text-gray-500 select-none pointer-events-auto z-50">
