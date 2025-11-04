@@ -5,34 +5,50 @@ import pytz
 from language_data import languages
 import base64, io, numpy as np
 from PIL import Image
-from deepface import DeepFace
+#from deepface import DeepFace
 from dotenv import load_dotenv
 
 # --- Initialization ---
 load_dotenv()
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_VOTER_SECRET_KEY", "a_secret_key_for_voter_sessions")
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 IST = pytz.timezone('Asia/Kolkata')
 UTC = pytz.utc
 
+# --- CODE COMPARISON FUNCTION (using direct string compare as requested) ---
+def compare_codes(entered_code, stored_code):
+    """Performs direct string comparison for code validation."""
+    if stored_code is None:
+        return False
+    return entered_code == stored_code
+
 # --- DB helper ---
-def get_db_connection():
+def get_db():
     try:
+        # Fetch database connection details from environment variables
+        dbname = os.getenv("DB_DBNAME")
+        user = os.getenv("DB_USER")
+        password = os.getenv("DB_PASSWORD")
+        host = os.getenv("DB_HOST")
+        port = os.getenv("DB_PORT")
+        
+        # Log the connection details to verify
+        app.logger.info(f"Connecting to DB with - host={host}, port={port}, dbname={dbname}, user={user}")
+
+        # Attempt DB connection
         return psycopg2.connect(
-            dbname=os.getenv("PG_DBNAME"),
-            user=os.getenv("PG_USER"),
-            password=os.getenv("PG_PASSWORD"),
-            host=os.getenv("PG_HOST"),
-            port=os.getenv("PG_PORT")
+            dbname=dbname,
+            user=user,
+            password=password,
+            host=host,
+            port=port
         )
     except Exception as e:
+        # Log the error if DB connection fails
         app.logger.error(f"DB connection error: {e}")
         return None
-
+    
 # --- Utility: numeric sort ---
 def numeric_sort(arr):
     def parse_num(s):
@@ -40,10 +56,35 @@ def numeric_sort(arr):
         return int(s) if s else 0
     return sorted(arr, key=parse_num)
 
-# --- Serve uploaded files ---
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+# --- Helper Function to Determine Household Query Clause ---
+def get_household_where_clause(data):
+    """
+    Builds the WHERE clause and params list needed to uniquely identify 
+    a household based on incoming API data (address components).
+    Returns: (where_clauses_list, params_list)
+    """
+    society = data.get('society')
+    if not society:
+        return ([], [])
+
+    where_clauses = ["society_name=%s"]
+    params = [society]
+    
+    if data.get('tower') and data.get('flat'):
+        where_clauses.extend(["tower=%s", "flat=%s"])
+        params.extend([data.get('tower'), data.get('flat')])
+    elif data.get('lane') and data.get('house'):
+        where_clauses.extend(["lane=%s", "house_number=%s"])
+        params.extend([data.get('lane'), data.get('house')])
+    elif data.get('flat') and not (data.get('tower') or data.get('lane')): # Individual no lanes
+        where_clauses.append("flat=%s")
+        params.append(data.get('flat'))
+    elif not (data.get('tower') or data.get('flat') or data.get('lane') or data.get('house')):
+        where_clauses.extend(["tower IS NULL", "flat IS NULL", "lane IS NULL", "house_number IS NULL"])
+    else:
+        return ([], []) # Incomplete or unmatchable details
+
+    return (where_clauses, params)
 
 # --- Select language ---
 @app.route("/", methods=["GET","POST"])
@@ -63,11 +104,24 @@ def select_language():
 # --- Login page ---
 @app.route("/login", methods=["GET","POST"])
 def login():
+    # 🛑 THE FIX: Force the user to select a language if session['lang'] is missing.
+    lang = session.get('lang', None)
+    if not lang:
+        flash("Please select a language first.", "warning")
+        return redirect(url_for('select_language'))
+    
     if request.method=="POST":
         flash("Please use verification options.", "info")
         return redirect(url_for('login'))
-    lang = session.get('lang','en')
-    resp = make_response(render_template("vote.html", societies=[], community_data={}, languages=languages, selected_language_code=lang))
+
+    # If we reach here, lang is the correctly selected language code.
+    resp = make_response(render_template(
+        "vote.html", 
+        societies=[], 
+        community_data={}, 
+        languages=languages, 
+        selected_language_code=lang
+    ))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
@@ -81,7 +135,7 @@ def get_society_details():
     if not society_name:
         return jsonify({"success": False, "message": "Society name required."}), 400
 
-    conn = get_db_connection()
+    conn = get_db()
     if not conn:
         return jsonify({"success": False, "message": "DB connection error."}), 500
 
@@ -175,140 +229,272 @@ def get_society_details():
         if conn:
             conn.close()
 
-# --- Verification: Secret Code ---
+# --- Verification: Secret Code (MODIFIED) ---
 @app.route("/api/verify_code", methods=["POST"])
 def verify_code():
     data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "Invalid request format."}), 400
+        
     society = data.get('society')
-    tower, flat, lane, house = data.get('tower'), data.get('flat'), data.get('lane'), data.get('house')
-    secret_code = data.get('secret_code')
-    mode = data.get('mode', 'vote') # <-- Gets the mode from JavaScript
+    entered_code = data.get('secret_code')
+    mode = data.get('mode', 'vote') 
 
-    if not society or not secret_code:
-        return jsonify({"success":False,"message":"Society and secret code required"}),400
-    conn = get_db_connection()
-    if not conn: return jsonify({"success":False,"message":"DB connection error"}),500
+    if not society or not entered_code:
+        return jsonify({"success": False, "message": "Society and secret code required"}), 400
+    
+    where_clauses, params = get_household_where_clause(data)
+    if not where_clauses:
+        return jsonify({"success": False, "message": "Incomplete household details"}), 400
+    
+    conn = get_db()
+    if not conn:
+        return jsonify({"success": False, "message": "DB connection error"}), 500
+
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Voting schedule (we need this for both modes, but check it later)
-            cur.execute("SELECT start_time,end_time FROM voting_schedule WHERE society_name=%s",(society,))
-            sched=cur.fetchone()
+            
+            # 1. Fetch Voting Schedule (needed for vote mode)
+            cur.execute("SELECT start_time, end_time FROM voting_schedule WHERE society_name=%s", (society,))
+            sched = cur.fetchone()
             if not sched or not sched['start_time'] or not sched['end_time']:
-                return jsonify({"success":False,"message":"Voting schedule not set"}),403
+                return jsonify({"success": False, "message": "Voting schedule not set"}), 403
 
-            # Dynamic household query
-            query="SELECT * FROM households WHERE society_name=%s AND secret_code=%s"
-            params=[society, secret_code]
-            if tower and flat: query+=" AND tower=%s AND flat=%s"; params.extend([tower,flat])
-            elif lane and house: query+=" AND tower=%s AND flat=%s"; params.extend([lane,house])
-            elif flat: query+=" AND flat=%s"; params.extend([flat])
-            elif not (tower or flat or lane or house): query+=" AND tower IS NULL AND flat IS NULL AND lane IS NULL AND house_number IS NULL"
-            else: return jsonify({"success":False,"message":"Incomplete household details"}),400
-
+            # 2. Fetch Household Record using address components (NOT the code)
+            # Fetch both secret_code and reset_code columns
+            query = "SELECT id, secret_code, reset_code, is_admin_blocked, is_vote_allowed, voted_in_cycle, voted_at FROM households WHERE " + " AND ".join(where_clauses)
             cur.execute(query, tuple(params))
-            h=cur.fetchone()
-            if not h: return jsonify({"success":False,"message":"Invalid credentials"}),410
+            h = cur.fetchone()
             
-            # --- START OF FIXED LOGIC ---
+            if not h:
+                return jsonify({"success": False, "message": "Household not found with provided details."}), 410
+
+            voter_secret_code = h.get('secret_code')
+            voter_reset_code = h.get('reset_code')
             
-            # These checks apply to BOTH modes
-            if h['is_admin_blocked']: return jsonify({"success":False,"message":"Blocked by admin"}),403
-            if not h['is_vote_allowed']: return jsonify({"success":False,"message":"Voting not allowed"}),403
+            # --- TIERED CODE VALIDATION LOGIC ---
 
-            # Now, check the mode
-            if mode == 'vote':
-                # ONLY check schedule and 'already voted' if user wants to vote
-                start_time=datetime.fromisoformat(sched['start_time'].replace('Z','+00:00'))
-                end_time=datetime.fromisoformat(sched['end_time'].replace('Z','+00:00'))
-                if not (start_time<=datetime.now(pytz.utc)<end_time):
-                    return jsonify({"success":False,"message":"Voting is closed"}),403
-                
-                if h['voted_in_cycle']==1: return jsonify({"success":False,"message":"Already voted"}),403
-
-            # --- END OF FIXED LOGIC ---
-
-            # If we get here, verification is successful for either mode
-            session['household_id']=h['id']
-            session['society_name']=society
+            is_valid_code = False
+            is_reset_required = False
             
-            # Get the timestamp (if it exists) to send back
+            # Check 1: Mandatory Reset Case (secret_code set, reset_code is NULL)
+            if voter_secret_code and voter_reset_code is None:
+                if compare_codes(entered_code, voter_secret_code):
+                    is_reset_required = True
+                    is_valid_code = True 
+            
+            # Check 2: Verification using User-Set Reset Code (reset_code is primary)
+            elif voter_reset_code:
+                if compare_codes(entered_code, voter_reset_code):
+                    is_valid_code = True
+            
+            # Check 3: Fallback to Admin Secret Code (Only if no reset_code and we didn't hit case 1)
+            elif voter_secret_code:
+                 if compare_codes(entered_code, voter_secret_code):
+                    is_valid_code = True
+            
+            
+            if not is_valid_code:
+                return jsonify({"success": False, "message": "Invalid code."}), 410
+
+            if is_reset_required:
+                # Code verified, but reset is mandatory. Tell JS to show the dialog.
+                return jsonify({"success": True, "needs_reset": True, "message": "Code reset required."})
+
+            # --- END TIERED CODE VALIDATION LOGIC ---
+            
+            # 3. Standard Pre-checks (Apply to both modes)
+            if h['is_admin_blocked']:
+                return jsonify({"success": False, "message": "Blocked by admin"}), 403
+            if not h['is_vote_allowed']:
+                return jsonify({"success": False, "message": "Voting not allowed"}), 403
+
+            # 4. Mode Specific Checks (Voting vs. Checking)
             proof_timestamp_str = None
-            if h['voted_in_cycle'] == 1 and h['voted_at']:
-                voted_time_ist = h['voted_at'].astimezone(IST)
+            if h['voted_in_cycle'] == 1 and h.get('voted_at'):
+                # Handle time zone conversion for display
+                voted_at = h['voted_at']
+                if voted_at.tzinfo is None:
+                    voted_at = pytz.utc.localize(voted_at)
+                voted_time_ist = voted_at.astimezone(IST)
                 proof_timestamp_str = voted_time_ist.strftime('%d-%m-%Y %I:%M:%S %p %Z')
+
+            if mode == 'vote':
+                # Check voting window
+                try:
+                    start_time_raw = sched['start_time']
+                    end_time_raw = sched['end_time']
+                    
+                    if isinstance(start_time_raw, str): start_time_raw = start_time_raw.replace('Z', '+00:00')
+                    if isinstance(end_time_raw, str): end_time_raw = end_time_raw.replace('Z', '+00:00')
+                    
+                    start_time = start_time_raw if isinstance(start_time_raw, datetime) else datetime.fromisoformat(start_time_raw)
+                    end_time = end_time_raw if isinstance(end_time_raw, datetime) else datetime.fromisoformat(end_time_raw)
+
+                    if start_time.tzinfo is None: start_time = start_time.replace(tzinfo=pytz.utc)
+                    if end_time.tzinfo is None: end_time = end_time.replace(tzinfo=pytz.utc)
+
+                    if not (start_time <= datetime.now(pytz.utc) < end_time):
+                        return jsonify({"success": False, "message": "Voting is closed"}), 403
+                except Exception as e:
+                    app.logger.error(f"Date parsing error: {e}")
+                    return jsonify({"success": False, "message": "Invalid date format or timezone error"}), 400
+
+                # CRITICAL FIX: Explicitly handle the 'already voted' case before the final success block.
+                if h['voted_in_cycle'] == 1:
+                    # Return success with the timestamp. The JavaScript handles the display.
+                    return jsonify({
+                        "success": True, 
+                        "voted_at": proof_timestamp_str,
+                        "redirect_url": url_for('ballot') 
+                    })
+
+            # 5. Success Response
+            # This is the main success path (Code valid, ready to vote/check).
+            session['household_id'] = h['id']
+            session['society_name'] = society
             
-            # Send success response with all data JavaScript needs
             return jsonify({
-                "success":True,
-                "message":"Verification successful",
+                "success": True,
+                "message": "Verification successful",
                 "voted_at": proof_timestamp_str,
                 "redirect_url": url_for('ballot')
             })
 
     except Exception as e:
         app.logger.error(f"Verify code error: {e}", exc_info=True)
-        return jsonify({"success":False,"message":"Server error"}),500
+        return jsonify({"success": False, "message": "Server error: " + str(e)}), 500
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
+# --- New API: Reset Code ---
+@app.route('/api/reset_code', methods=['POST'])
+def reset_code():
+    data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "Invalid request format."}), 400
         
+    user_id = data.get('user_id')
+    new_code = data.get('new_code')
+    confirm_code = data.get('confirm_code')
+
+    if not user_id or not new_code or not confirm_code:
+        return jsonify({"success": False, "message": "Missing required fields."}), 400
+        
+    if new_code != confirm_code:
+        return jsonify({"success": False, "message": "New codes do not match."})
+
+    conn = get_db()
+    if not conn:
+        return jsonify({"success": False, "message": "DB connection error"}), 500
+
+    try:
+        # Re-parse user_id components from the string
+        parts = user_id.split('-')
+        if len(parts) < 2:
+            return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
+            
+        society = parts[0]
+        
+        # Build WHERE clause from composite user_id string
+        where_clauses = ["society_name=%s"]
+        params = [society]
+
+        if len(parts) == 4: # Apartment (society-tower-floor-flat) -> Use tower and flat
+             where_clauses.extend(["tower=%s", "flat=%s"])
+             params.extend([parts[1], parts[3]]) 
+        elif len(parts) == 3: # Individual lanes (society-lane-house)
+             where_clauses.extend(["lane=%s", "house_number=%s"])
+             params.extend([parts[1], parts[2]]) 
+        elif len(parts) == 2: # Individual no lanes (society-flat)
+             where_clauses.append("flat=%s")
+             params.extend([parts[1]])
+        else:
+             return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
+        
+        # Update the database: Set the new plain code into 'reset_code'
+        update_query = "UPDATE households SET reset_code=%s WHERE " + " AND ".join(where_clauses)
+        update_params = [new_code] + params # New code is stored in plaintext
+        
+        cur = conn.cursor()
+        cur.execute(update_query, tuple(update_params))
+        
+        if cur.rowcount == 1:
+            conn.commit()
+            return jsonify({
+                "success": True, 
+                "message": "Code reset successful! Please log in with your new code."
+            })
+        else:
+            return jsonify({"success": False, "message": "Failed to update household (record not found or update failed)."}), 404
+
+    except Exception as e:
+        app.logger.error(f"Reset code error: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "Server error during reset."}), 500
+    finally:
+        if conn:
+            conn.close()
+
 # --- Verification: Face ---
 @app.route("/api/verify_face", methods=["POST"])
 def verify_face():
-    data=request.get_json()
-    society=data.get('society'); tower, flat, lane, house = data.get('tower'), data.get('flat'), data.get('lane'), data.get('house')
-    image_data=data.get('image_data')
-    if not society or not image_data: return jsonify({"verified":False,"message":"Society and image required"}),400
-    conn=get_db_connection()
-    if not conn: return jsonify({"verified":False,"message":"DB connection error"}),500
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Voting schedule check
-            cur.execute("SELECT start_time,end_time FROM voting_schedule WHERE society_name=%s",(society,))
-            sched=cur.fetchone()
-            start_time=datetime.fromisoformat(sched['start_time'].replace('Z','+00:00'))
-            end_time=datetime.fromisoformat(sched['end_time'].replace('Z','+00:00'))
-            if not (start_time<=datetime.now(pytz.utc)<end_time): return jsonify({"verified":False,"message":"Voting is closed"})
-
-            query="SELECT * FROM households WHERE society_name=%s AND face_recognition_image IS NOT NULL"
-            params=[society]
-            if tower and flat: query+=" AND tower=%s AND flat=%s"; params.extend([tower,flat])
-            elif lane and house: query+=" AND tower=%s AND flat=%s"; params.extend([lane,house])
-            elif flat: query+=" AND flat=%s"; params.extend([flat])
-            elif not (tower or flat or lane or house): query+=" AND tower IS NULL AND flat IS NULL AND lane IS NULL AND house_number IS NULL"
-            else: return jsonify({"verified":False,"message":"Incomplete household details"}),400
-
-            cur.execute(query,tuple(params))
-            row=cur.fetchone()
-            if not row: return jsonify({"verified":False,"message":"No face record found"})
-            if row['voted_in_cycle']==1: return jsonify({"verified":False,"message":"Already voted"})
-            if row['is_admin_blocked']: return jsonify({"verified":False,"message":"Blocked"})
-            if not row['is_vote_allowed']: return jsonify({"verified":False,"message":"Voting not allowed"})
-
-            # Decode live image
-            _,encoded=image_data.split(",",1) if "," in image_data else (None,image_data)
-            live_np=np.array(Image.open(io.BytesIO(base64.b64decode(encoded))).convert('RGB'))
-            live_emb=DeepFace.represent(img_path=live_np,model_name='Facenet',enforce_detection=True)[0]['embedding']
-            stored_emb=json.loads(row['face_recognition_image'])
-            verified=DeepFace.verify(img1_path=live_emb,img2_path=stored_emb,model_name='Facenet',distance_metric='cosine')['verified']
-
-            if verified:
-                session['household_id']=row['id']
-                session['society_name']=society
-                proof_timestamp_str = None
-                if row['voted_in_cycle'] == 1 and row['voted_at']:
-                    voted_time_ist = row['voted_at'].astimezone(IST)
-                    proof_timestamp_str = voted_time_ist.strftime('%d-%m-%Y %I:%M:%S %p %Z')
-                return jsonify({"verified":True,"message":"Verification successful","redirect_url":url_for('ballot')})
-            else:
-                return jsonify({"verified":False,"message":"Face not recognized"})
-
-    except ValueError:
-        return jsonify({"verified":False,"message":"No face detected"})
-    except Exception as e:
-        app.logger.error(f"Face verification error: {e}",exc_info=True)
-        return jsonify({"verified":False,"message":"Server error"}),500
-    finally:
-        if conn: conn.close()
+#   data=request.get_json()
+#   society=data.get('society'); tower, flat, lane, house = data.get('tower'), data.get('flat'), data.get('lane'), data.get('house')
+#   image_data=data.get('image_data')
+#   if not society or not image_data: return jsonify({"verified":False,"message":"Society and image required"}),400
+#   conn=get_db()
+#   if not conn: return jsonify({"verified":False,"message":"DB connection error"}),500
+#   try:
+#       with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+#           # Voting schedule check
+#           cur.execute("SELECT start_time,end_time FROM voting_schedule WHERE society_name=%s",(society,))
+#           sched=cur.fetchone()
+#           start_time=datetime.fromisoformat(sched['start_time'].replace('Z','+00:00'))
+#           end_time=datetime.fromisoformat(sched['end_time'].replace('Z','+00:00'))
+#           if not (start_time<=datetime.now(pytz.utc)<end_time): return jsonify({"verified":False,"message":"Voting is closed"})
+#
+#           query="SELECT * FROM households WHERE society_name=%s AND face_recognition_image IS NOT NULL"
+#           params=[society]
+#           if tower and flat: query+=" AND tower=%s AND flat=%s"; params.extend([tower,flat])
+#           elif lane and house: query+=" AND tower=%s AND flat=%s"; params.extend([lane,house])
+#           elif flat: query+=" AND flat=%s"; params.extend([flat])
+#           elif not (tower or flat or lane or house): query+=" AND tower IS NULL AND flat IS NULL AND lane IS NULL AND house_number IS NULL"
+#           else: return jsonify({"verified":False,"message":"Incomplete household details"}),400
+#
+#           cur.execute(query,tuple(params))
+#           row=cur.fetchone()
+#           if not row: return jsonify({"verified":False,"message":"No face record found"})
+#           if row['voted_in_cycle']==1: return jsonify({"verified":False,"message":"Already voted"})
+#           if row['is_admin_blocked']: return jsonify({"verified":False,"message":"Blocked"})
+#           if not row['is_vote_allowed']: return jsonify({"verified":False,"message":"Voting not allowed"})
+#
+#           # Decode live image
+#           _,encoded=image_data.split(",",1) if "," in image_data else (None,image_data)
+#           live_np=np.array(Image.open(io.BytesIO(base64.b64decode(encoded))).convert('RGB'))
+#           live_emb=DeepFace.represent(img_path=live_np,model_name='Facenet',enforce_detection=True)[0]['embedding']
+#           stored_emb=json.loads(row['face_recognition_image'])
+#           verified=DeepFace.verify(img1_path=live_emb,img2_path=stored_emb,model_name='Facenet',distance_metric='cosine')['verified']
+#
+#           if verified:
+#               session['household_id']=row['id']
+#               session['society_name']=society
+#               proof_timestamp_str = None
+#               if row['voted_in_cycle'] == 1 and row['voted_at']:
+#                   voted_time_ist = row['voted_at'].astimezone(IST)
+#                   proof_timestamp_str = voted_time_ist.strftime('%d-%m-%Y %I:%M:%S %p %Z')
+#               return jsonify({"verified":True,"message":"Verification successful","redirect_url":url_for('ballot')})
+#           else:
+#               return jsonify({"verified":False,"message":"Face not recognized"})
+#
+#   except ValueError:
+#       return jsonify({"verified":False,"message":"No face detected"})
+#   except Exception as e:
+#       app.logger.error(f"Face verification error: {e}",exc_info=True)
+#       return jsonify({"verified":False,"message":"Server error"}),500
+#   finally:
+#       if conn: conn.close()
+    return jsonify({"verified": False, "message": "Face verification temporarily disabled"}), 200
 
 # --- Ballot page ---
 @app.route("/ballot")
@@ -316,7 +502,7 @@ def ballot():
     if "household_id" not in session:
         flash("Session expired", "error"); return redirect(url_for("login"))
     household_id=session['household_id']
-    conn=get_db_connection()
+    conn=get_db()
     if not conn: flash("DB error","danger"); return redirect(url_for("login"))
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
@@ -353,7 +539,7 @@ def submit_vote():
     data=request.get_json(); selected=data.get("contestants")
     if not selected: return jsonify({"success":False,"message":"No contestants selected"}),400
 
-    conn=get_db_connection()
+    conn=get_db()
     if not conn: return jsonify({"success":False,"message":"DB error"}),500
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
@@ -386,4 +572,4 @@ def submit_vote():
 
 # --- Main ---
 if __name__=='__main__':
-    app.run(port=5001,debug=True)
+    app.run(port=5001,debug=False)

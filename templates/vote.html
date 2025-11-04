@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="{{ selected_language_code if selected_language_code else 'en' }}">
-  <head>
+  <head>    
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>{{ languages[selected_language_code]['voteTitle'] if selected_language_code and languages[selected_language_code].voteTitle else 'Welcome to Voting System' }}</title>
+      <title>{{ languages[selected_language_code]['appTitle_vote'] if selected_language_code and languages[selected_language_code].appTitle_vote else 'Welcome to Voting System' }}</title>
       <script src="https://cdn.tailwindcss.com"></script>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       <style>
@@ -32,7 +32,7 @@
               width: 100%;
               max-width: 600px;
               height: 70px;
-              background: linear-gradient(to bottom, #FF9933 33.33%, #FFFFFF 66.66%, #584df0 100%);
+              background: linear-gradient(to bottom, #FF9933 33.33%, #FFFFFF 66.66%, #4e5eef 100%);
               position: fixed;
               top: 20px;
               left: 50%;
@@ -55,17 +55,7 @@
               text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
               margin: 0;
           }
-        /* 🔵 Authentic Spinning Ashoka Chakra 
-        .chakra {
-            width: 45px;
-            height: 45px;
-            animation: spinChakra 10s linear infinite;
-        } 
-
-        @keyframes spinChakra {
-            from { transform: rotate(0deg); }
-            to   { transform: rotate(360deg); }
-        } */
+        /* 🔵 Authentic Spinning Ashoka Chakra */
         .ribbon .siva-text {
             font-weight: 800;
             font-size: 2.2rem;
@@ -468,16 +458,27 @@
   </head>
 <body>
       <div class="ribbon">
-        <h2>
-        Validate Vote Details <span class="siva-text"> SIVA </span>
-        </h2>
+<!--         <svg class="chakra" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="48" stroke="#0000FF" stroke-width="4" fill="none"/>
+          <g stroke="#0000FF" stroke-width="2">
+            <g transform="translate(50,50)">
+              <circle r="3" fill="#0000FF"/>
+              <defs>
+                <line id="spoke" y1="3" y2="-47"/>
+              </defs>
+              {% for i in range(0, 360, 15) %}
+                <use href="#spoke" transform="rotate({{ i }})"/>
+              {% endfor %}
+            </g>
+          </g>
+        </svg>  -->
+    
+        <h2>{{ languages[selected_language_code]['ribbonTitle_vote'] if selected_language_code and languages[selected_language_code].ribbonTitle_vote else 'Validate Vote Details' }} <span class="siva-text"> SIVA </span></h2>
         </div>
 
     <div class="content-area-wrapper">
         <div class="container">
-            <h1 class="text-3xl font-bold text-center text-white mb-4 px-4 py-2 rounded-lg shadow-md" style="color: #04010f; display: inline-block; max-width: 100%; margin: 0 auto;">
-                Enter Vote Details
-            </h1>
+          <h1 class="text-3xl font-bold text-center text-white mb-4 px-4 py-2 rounded-lg shadow-md" style="color: #04010f; display: inline-block; max-width: 100%; margin: 0 auto;">{{ languages[selected_language_code]['pageTitle_voteDetails'] if selected_language_code and languages[selected_language_code].pageTitle_voteDetails else 'Enter Vote Details' }}</h1>
             <div id="message_display_box" class="message-box hidden"></div>
             <form id="voteForm" onsubmit="event.preventDefault();">
               
@@ -485,19 +486,17 @@
                   <div class="radio-group">
                       <label class="radio-option" id="apartment_option">
                           <input type="radio" name="community_type" value="apartment" id="apartment_type" checked>
-                          <span>Apartment</span>
+                          <span>{{ languages[selected_language_code]['label_apartmentType'] if selected_language_code and languages[selected_language_code].label_apartmentType else 'Apartment' }}</span>
                       </label>
                       <label class="radio-option" id="individual_option">
                           <input type="radio" name="community_type" value="individual" id="individual_type">
-                          <span>Individual Homes</span>
+                          <span>{{ languages[selected_language_code]['label_individualHomesType'] if selected_language_code and languages[selected_language_code].label_individualHomesType else 'Individual Homes' }}</span>
                       </label>
                   </div>
               </div>
 
             <div class="form-group" style="text-align: center;">
-                <label for="society_name" style="font-size: 1.1rem; font-weight: 600; display: block; margin-bottom: 0.5rem;">
-                    Society Name:
-                </label>
+              <label for="society_name" ...>{{ languages[selected_language_code]['label_societyName'] if selected_language_code and languages[selected_language_code].label_societyName else 'Society Name:' }}</label>
                 <input
                     type="text"
                     id="society_name"
@@ -505,21 +504,30 @@
                     class="text-center"
                     autocomplete="off"
                     autofocus
-                    placeholder="SOCIETY NAME"
+                    placeholder="{{ languages[selected_language_code]['placeholder_societyName'] if selected_language_code and languages[selected_language_code].placeholder_societyName else 'SOCIETY NAME' }}"
                     oninput="this.value = this.value.toUpperCase()"
                     style="font-size: 1rem; padding: 0.8rem; text-align: center; width: 250px; display: block; margin: 0 auto;"
                 />
-            </div> 
+            </div>
+            <div class="form-group" style="text-align: center;">
+               
+                <button type="button" id="validateSocietyBtn" class="btn btn-green mt-2"
+                    style="font-size: 0.8rem; padding: 0.8rem; text-align: center; width: 150px; display: block; margin: 0 auto;">    
+                    Validate Society
+                </button>
+            </div>
 
             <div style="position: absolute; top: 115px; right: 25px;">
                 <div style="display: flex; flex-direction: column; justify-content: space-around;"> 
                     <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: 500; margin-bottom: 0.25rem;">
                         <input type="radio" name="app_mode" value="vote" id="mode_vote" checked style="width: 1.1rem; height: 1.1rem; accent-color: #6366f1;">
-                        <span style="font-size: 0.9rem;"><b>Voting:</b> To vote</span>
+                        <span style="font-size: 0.9rem;"> <b>-</b>{{ languages[selected_language_code]['mode_voting'] if selected_language_code and languages[selected_language_code].mode_voting else ' To vote' }}
+                        </span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-weight: 500;">
                         <input type="radio" name="app_mode" value="check" id="mode_check" style="width: 1.1rem; height: 1.1rem; accent-color: #6366f1;">
-                        <span style="font-size: 0.9rem;"><b>Check:</b> Last voting Time</span>
+                        <span style="font-size: 0.9rem;"> <b>-</b>{{ languages[selected_language_code]['mode_check'] if selected_language_code and languages[selected_language_code].mode_check else ' Last voted Time' }}
+                        </span>
                     </label>
                 </div>
             </div>
@@ -530,35 +538,35 @@
                 
                 <div id="apartment_field_group" class="flex-form-group hidden-fields">
                     <div class="flex-form-item">
-                        <label for="tower">Tower:</label>
+                        <label for="tower">{{ languages[selected_language_code]['towerLabel'] if selected_language_code and languages[selected_language_code].towerLabel else 'Tower:' }}</label>
                         <select id="tower" name="tower" class="text-center" autocomplete="off">
-                            <option value="">Select...</option>
+                            <option value="">{{ languages[selected_language_code]['selectDefaultOption'] if selected_language_code and languages[selected_language_code].selectDefaultOption else 'Select...' }}</option>
                         </select>
                     </div>
                     <div class="flex-form-item">
-                        <label for="floor">Floor:</label>
+                        <label for="floor">{{ languages[selected_language_code]['floorLabel'] if selected_language_code and languages[selected_language_code].floorLabel else 'Floor:' }}</label>
                         <select id="floor" name="floor" class="text-center" autocomplete="off">
-                            <option value="">Select...</option>
+                            <option value="">{{ languages[selected_language_code]['selectDefaultOption'] if selected_language_code and languages[selected_language_code].selectDefaultOption else 'Select...' }}</option>
                         </select>
                     </div>
                     <div class="flex-form-item">
-                        <label for="flat_id">Flat:</label>
+                        <label for="flat_id">{{ languages[selected_language_code]['flatLabel'] if selected_language_code and languages[selected_language_code].flatLabel else 'Flat:' }}</label>
                         <select id="flat_id" name="flat_id" class="text-center" autocomplete="off">
-                            <option value="">Select...</option>
+                            <option value="">{{ languages[selected_language_code]['selectDefaultOption'] if selected_language_code and languages[selected_language_code].selectDefaultOption else 'Select...' }}</option>
                         </select>
                     </div>
                 </div>          
             
                 <div id="individual_home_type_fields" class="form-group hidden-fields" style="display: none;">
-                    <label>Individual Homes Type:</label>
+                    <label>{{ languages[selected_language_code]['label_individualHomesSubType'] if selected_language_code and languages[selected_language_code].label_individualHomesSubType else 'Individual Homes Type:' }}</label>
                     <div class="radio-group">
                         <label class="radio-option" id="with_lanes_option">
                             <input type="radio" name="individual_home_type" value="with_lanes" id="with_lanes">
-                            <span>With Lanes</span>
+                            <span>{{ languages[selected_language_code]['label_homeType_withLanes'] if selected_language_code and languages[selected_language_code].label_homeType_withLanes else 'With Lanes' }}</span>
                         </label>
                         <label class="radio-option" id="no_lanes_option">
                             <input type="radio" name="individual_home_type" value="no_lanes" id="no_lanes">
-                            <span>No Lanes</span>
+                            <span>{{ languages[selected_language_code]['label_homeType_noLanes'] if selected_language_code and languages[selected_language_code].label_homeType_noLanes else 'No Lanes' }}</span>
                         </label>
                     </div>
                 </div>
@@ -566,15 +574,15 @@
                 <div id="lane_house_fields" class="form-group hidden-fields">
                     <div class="flex-form-group">
                         <div class="flex-form-item">
-                            <label for="lane">Lane:</label>
+                            <label for="lane">{{ languages[selected_language_code]['laneLabel'] if selected_language_code and languages[selected_language_code].laneLabel else 'Lane:' }}</label>
                             <select id="lane" name="lane" class="text-center">
-                                <option value="">Select...</option>
+                                <option value="">{{ languages[selected_language_code]['selectDefaultOption'] if selected_language_code and languages[selected_language_code].selectDefaultOption else 'Select...' }}</option>
                             </select>
                         </div>
                         <div class="flex-form-item">
-                            <label for="house_number">House Number:</label>
+                            <label for="house_number">{{ languages[selected_language_code]['houseNumberLabel'] if selected_language_code and languages[selected_language_code].houseNumberLabel else 'House Number:' }}</label>
                             <select id="house_number" name="house_number" class="text-center">
-                                <option value="">Select...</option>
+                                <option value="">{{ languages[selected_language_code]['selectDefaultOption'] if selected_language_code and languages[selected_language_code].selectDefaultOption else 'Select...' }}</option>
                             </select>
                         </div>
                     </div>
@@ -582,26 +590,26 @@
                 <div id="no_lane_fields" class="form-group hidden-fields">
                     <div class="flex-form-group">
                         <div class="flex-form-item" style="width: 100%; max-width: 300px;">
-                            <label for="flat_no_lanes">Voter / House ID:</label>
+                            <label for="flat_no_lanes">{{ languages[selected_language_code]['voterHouseIDLabel'] if selected_language_code and languages[selected_language_code].voterHouseIDLabel else 'Voter / House ID:' }}</label>
                             <select id="flat_no_lanes" name="flat_no_lanes" class="text-center">
-                                <option value="">Select...</option>
+                                <option value="">{{ languages[selected_language_code]['selectDefaultOption'] if selected_language_code and languages[selected_language_code].selectDefaultOption else 'Select...' }}</option>
                             </select>
                         </div>
                     </div>
                 </div>
             
                 <div class="verification-method-choice">
-                    <button type="button" id="photoVerifyBtn" class="btn btn-green">
+                    <button type="button" id="photoVerifyBtn" class="btn btn-gray">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block mr-1">
                             <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
                         </svg>
-                        Photo
+                        {{ languages[selected_language_code]['verifyBtn_photo'] if selected_language_code and languages[selected_language_code].verifyBtn_photo else 'Photo' }}
                     </button>
-                    <button type="button" id="secretCodeVerifyBtn" class="btn btn-secondary">
+                    <button type="button" id="secretCodeVerifyBtn" class="btn btn-green">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block mr-1">
                             <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
                         </svg>
-                        Code
+                        {{ languages[selected_language_code]['verifyBtn_secretCode'] if selected_language_code and languages[selected_language_code].verifyBtn_secretCode else 'Code' }}
                     </button>
                 </div>
 
@@ -613,21 +621,21 @@
                     <div class="camera-buttons">
                         <button type="button" id="startCameraButton" class="btn btn-green">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block mr-1">
-                                <path d="M16.72 8.44l-2.67-2.68a1.5 1.5 0 00-2.12 0l-.35.35A.75.75 0 0110.25 5h-.5a.75.75 0 01-.53-.29l-.35-.35a1.5 1.5 0 00-2.12 0L3.28 8.44a.75.75 0 00-.02 1.06l.87.88a.75.75 0 001.06 0l.47-.47a.75.75 0 01.53-.22h2.08a.75.75 0 01.53.22l.47.47a.75.75 0 001.06 0l.88-.88a.75.75 0 00-.02-1.06zM3.75 12h-.5a.75.75 0 00-.75.75v3.5c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-3.5a.75.75 0 00-.75-.75h-.5a.75.75 0 01-.75-.75V9.75a.75.75 0 00-.75-.75h-2.5a.75.75 0 00-.75.75v1.5c0 .414.336.75.75.75h-2.5a.75.75 0 01-.75-.75v-1.5a.75.75 0 00-.75-.75h-2.5a.75.75 0 00-.75.75v1.5c0 .414.336.75.75.75z" />
+                                <path d="M16.72 8.44l-2.67-2.68a1.5 1.5 0 00-2.12 0l-.35.35A.75.75 0 0110.25 5h-.5a.75.75 0 01-.53-.29l-.35-.35a1.5 1.5 0 00-2.12 0L3.28 8.44a.75.75 0 00-.02 1.06l.87.88a.75.75 0 001.06 0l.47-.47a.75.75 0 01.53-.22h2.08a.75.75 0 01.53.22l.47.47a.75.75 0 001.06 0l.88-.88a.75.75 0 00-.02-1.06zM3.75 12h-.5a.75.75 0 00-.75.75v3.5c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-3.5a.75.75 0 00-.75-.75h-.5a.75.75 0 01-.75-.75V9.75a.75.75 0 00-.75-.75h-2.5a.75.75 0 00-.75.75v1.5c0 .414.336.75.75.75h-2.5a.75.75 0 01-.75-.75v-1.5a.75.75 0 00-.75-.75h-2.5a.75.75 0 00-.75.75v1.5c0 .414.336.75.75.75.75z" />
                             </svg>
-                            Start Cam
+                            {{ languages[selected_language_code]['button_startCam'] if selected_language_code and languages[selected_language_code].button_startCam else 'Start Cam' }}
                         </button>
                         <button type="button" id="verifyPhotoButton" class="btn btn-primary" disabled>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block mr-1">
                                 <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
                             </svg>
-                            Verify Face
+                            {{ languages[selected_language_code]['button_verifyFace'] if selected_language_code and languages[selected_language_code].button_verifyFace else 'Verify Face' }}
                         </button>
                         <button type="button" id="stopCameraButton" class="btn btn-secondary">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 inline-block mr-1">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                             </svg>
-                            Stop Cam
+                            {{ languages[selected_language_code]['button_stopCam'] if selected_language_code and languages[selected_language_code].button_stopCam else 'Stop Cam' }}
                         </button>
                     </div>
                 </div>
@@ -639,17 +647,19 @@
                         </label>
                         <input type="password" id="secret_code" name="secret_code" class="border px-2 py-1" style="width: 150px; height: 36px;">
                         <button type="button" id="submitSecretCodeButton" class="btn-primary" style="height: 36px;" disabled>
-                            Submit
+                            {{ languages[selected_language_code]['button_submitCode'] if selected_language_code and languages[selected_language_code].button_submitCode else 'Submit' }}
                         </button>
                     </div>
                 </div>
 
               </div> <div id="alreadyVotedMessageSection" style="display:none; text-align:center; padding: 20px; background-color: #fee2e2; color: #991b1b; border-radius: 0.5rem; margin-top: 15px;">
-                  <h3 class="text-xl font-semibold">You have already voted.</h3>
+                  <h3 class="text-xl font-semibold">
+                     {{ languages[selected_language_code]['alert_alreadyVoted'] if selected_language_code and languages[selected_language_code].alert_alreadyVoted else 'You have already voted.' }}
+                  </h3>
                   <p class="mt-2">Thank you for your participation.</p>
                   <p class="mt-2"><strong>Your ID: <span id="votedIdDisplay"></span></strong></p>
                   <div class="mt-4">
-                      <a href="#" class="btn-primary mt-4 bg-gray-500 hover:bg-gray-600">
+                      <a href="{{ url_for('select_language') }}" class="btn-primary mt-4 bg-gray-500 hover:bg-gray-600">
                           Go back to Homepage
                       </a>
                   </div>
@@ -672,7 +682,38 @@
     </div>
 
     <div class="global-overlay-message" id="global-overlay-message"></div>
- 
+
+<!-- NEW DIALOG HTML BLOCK FOR CODE RESET -->
+<div id="resetCodeDialog" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 10002; justify-content: center; align-items: center;">
+    <div class="container" style="max-width: 350px; background-color: #ffffff; padding: 6px 15px 6px 15px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; gap: 0; overflow: hidden; display: block;">
+        
+        <!-- Error Message Holder (Reduced height) -->
+        <div id="reset_message_display" class="message-box message-error hidden" style="position: static; margin: 2px auto 3px; width: 100%; box-shadow: none; font-size: 0.8rem; padding: 2px;"></div>
+        
+        <!-- Header (Margins set to 0) -->
+        <h3 class="text-xl font-bold text-center" style="color: #333333; margin-top: 0; margin-bottom: 0; line-height: 1.1;">First-Time Code Reset</h3>
+        <p class="text-sm text-gray-600 text-center" style="margin: 0 0 2px 0; line-height: 1.1;">Your account requires a mandatory one-time code reset for security.</p>
+
+        <!-- New Secret Code Field (Tighter Margin) -->
+        <div class="form-group" style="margin-bottom: 2px;">
+            <label for="new_secret_code" style="font-size: 0.75rem; margin-bottom: 0;">New Secret Code:</label>
+            <input type="password" id="new_secret_code" class="border px-2 py-1" required style="width: 100%; height: 24px; padding: 0.15rem;" autofocus>
+        </div>
+
+        <!-- Confirm New Code Field (Tighter Margin) -->
+        <div class="form-group" style="margin-bottom: 4px;">
+            <label for="confirm_new_secret_code" style="font-size: 0.75rem; margin-bottom: 0;">Confirm New Code:</label>
+            <input type="password" id="confirm_new_secret_code" class="border px-2 py-1" required style="width: 100%; height: 24px; padding: 0.15rem;">
+        </div>
+
+        <!-- Button (Zero Margin) -->
+        <button type="button" id="submitNewCodeButton" class="btn-primary" style="width: 100%; margin-top: 20px; padding: 0.2rem 0;">
+            Set New Code
+        </button>
+    </div>
+</div>
+
+
 <script>
     // --- Data is now fetched dynamically ---
     let dynamicCommunityData = {};
@@ -683,14 +724,17 @@
     const dynamicFormFields = document.getElementById('dynamic_form_fields');
     const apartmentFieldGroup = document.getElementById('apartment_field_group');
     const laneHouseFields = document.getElementById('lane_house_fields');
-    
+    const voteForm = document.getElementById('voteForm');
+    const alreadyVotedMessageSection = document.getElementById('alreadyVotedMessageSection');
+    const votedIdDisplay = document.getElementById('votedIdDisplay');
+    const resetMessageDisplay = document.getElementById('reset_message_display');
     const towerSelect = document.getElementById('tower');
     const floorSelect = document.getElementById('floor');
     const flatIdSelect = document.getElementById('flat_id');
     const laneSelect = document.getElementById('lane');
     const houseNumberSelect = document.getElementById('house_number');
     const flatNoLanesSelect = document.getElementById('flat_no_lanes');
-    const photoVerifyBtn = document.getElementById('photoVerifyBtn');
+    const photoVerifyBtn = document.getElementById('photoVerifyBtn'); 
     const secretCodeVerifyBtn = document.getElementById('secretCodeVerifyBtn');
     const photoSection = document.getElementById('photo_verification_section');
     const secretCodeSection = document.getElementById('secret_code_verification_section');
@@ -705,11 +749,95 @@
     const messageDisplayBox = document.getElementById('message_display_box');
     const globalOverlayMessage = document.getElementById('global-overlay-message');
 
+    // NEW Variables for Code Reset Dialog
+    const resetCodeDialog = document.getElementById('resetCodeDialog');
+    const newSecretCodeInput = document.getElementById('new_secret_code');
+    const confirmNewSecretCodeInput = document.getElementById('confirm_new_secret_code');
+    const submitNewCodeButton = document.getElementById('submitNewCodeButton');
+    // END NEW Variables
+    
     let currentStream = null;
     let isVerified = false;
     let currentVerificationMethod = null;
- 
-    function resetDynamicFields() { 
+
+    // --- Function Definitions ---
+
+    /**
+     * Displays the code reset dialog.
+     */
+    function showResetDialog() {
+        resetCodeDialog.style.display = 'flex'; // Use flex to center the content
+        newSecretCodeInput.value = '';
+        confirmNewSecretCodeInput.value = '';
+        submitNewCodeButton.disabled = true;
+        resetMessageDisplay.classList.add('hidden'); // Hide any previous error messages
+        newSecretCodeInput.focus(); // Set focus to the first input field
+    }
+
+    /**
+     * Hides the code reset dialog.
+     */
+    function hideResetDialog() {
+        resetCodeDialog.style.display = 'none';
+    }
+
+    /**
+     * Validates the new and confirmation secret codes.
+     */
+
+        function validateNewCode() {
+        const newCode = newSecretCodeInput.value.trim();
+        const confirmCode = confirmNewSecretCodeInput.value.trim();
+        
+        resetMessageDisplay.classList.add('hidden'); // Start by hiding previous messages
+
+        if (newCode.length > 0 && confirmCode.length > 0 && newCode !== confirmCode) {
+            // New validation check: codes do not match
+            resetMessageDisplay.textContent = "Passwords must be the same.";
+            resetMessageDisplay.classList.remove('hidden');
+            submitNewCodeButton.disabled = true;
+            return false;
+        }
+
+        const isValid = newCode.length > 0 && newCode === confirmCode;
+        submitNewCodeButton.disabled = !isValid;
+        
+        return isValid;
+    }
+
+
+    /**
+     * CRITICAL FIX: Handles the display of the 'already voted' message 
+     * while preserving the Society Name input for the next voter.
+     */
+    function handleAlreadyVoted(voterId) {
+        // Stop any active camera stream
+        stopCamera(); 
+        
+        // Hide the dynamic address and verification fields
+        dynamicFormFields.classList.add('hidden-fields');
+
+        // Reset verification method buttons
+        switchVerificationMethod(null);
+        
+        // Clear the secret code input for the next user
+        secretCodeInput.value = '';
+
+        // Update the voted ID display and show the dedicated message section
+        votedIdDisplay.textContent = voterId;
+        alreadyVotedMessageSection.style.display = 'block';
+
+        // NOTE: We intentionally DO NOT hide voteForm (which contains societyInput)
+        // This ensures the Society Name field remains visible and ready for the next entry.
+    }
+    
+    /**
+     * Resets all dynamic fields, hiding them and clearing data.
+     */
+    function resetDynamicFields() {
+        // Ensure the large 'already voted' message is hidden when a user interacts again
+        alreadyVotedMessageSection.style.display = 'none'; 
+
         dynamicFormFields.classList.add('hidden-fields');
         apartmentFieldGroup.classList.add('hidden-fields');
         laneHouseFields.classList.add('hidden-fields');
@@ -751,7 +879,7 @@
             return;
         }
 
-        showGlobalOverlay("Fetching society details...");
+        showGlobalOverlay("{{ languages[selected_language_code]['message_fetchingSocietyDetails'] if selected_language_code and languages[selected_language_code].message_fetchingSocietyDetails else 'Fetching society details...' }}");
         
         try {
             const response = await fetch('/api/get_society_details', {
@@ -769,7 +897,7 @@
                 currentCommunityType = data.community_type;
                 
                 // --- FIX: Enable method buttons ---
-                photoVerifyBtn.disabled = false;
+                photoVerifyBtn.disabled = true;
                 secretCodeVerifyBtn.disabled = false;
                 // ----------------------------------
                 
@@ -785,7 +913,7 @@
         } catch (err) {
             console.error("Error fetching society details:", err);
             hideGlobalOverlay();
-            alert("An error occurred while fetching society details.");
+            alert("{{ languages[selected_language_code]['alert_errorFetchingSocietyDetails'] if selected_language_code and languages[selected_language_code].alert_errorFetchingSocietyDetails else 'An error occurred while fetching society details.' }}");
             resetDynamicFields();
         }
     }
@@ -938,12 +1066,14 @@
      */
     function validateFormAndEnableVerify() {
         const idSelected = areDetailsSelected();
-        
+        const secretCodeEntered = secretCodeInput.value.trim().length > 0; // NEW CHECK
+
         if (currentVerificationMethod === 'photo') {
             verifyPhotoButton.disabled = !idSelected || currentStream === null;
             submitSecretCodeButton.disabled = true;
         } else if (currentVerificationMethod === 'secret_code') {
-            submitSecretCodeButton.disabled = !idSelected || secretCodeInput.value.trim().length === 0;
+            // Check if details are selected AND a code is entered
+            submitSecretCodeButton.disabled = !idSelected || !secretCodeEntered; // MODIFIED LINE
             verifyPhotoButton.disabled = true;
         } else {
             // No method selected
@@ -987,7 +1117,7 @@
     async function startCamera() {
         if (currentStream) return;
         try {
-            showGlobalOverlay("Starting camera...");
+            showGlobalOverlay("{{ languages[selected_language_code]['message_startingCamera'] if selected_language_code and languages[selected_language_code].message_startingCamera else 'Starting camera...' }}");
             const constraints = { video: { facingMode: "user" } };
             currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = currentStream;
@@ -1001,7 +1131,7 @@
         } catch (err) {
             console.error("Error accessing camera:", err);
             hideGlobalOverlay();
-            alert('Could not access camera. Please check browser permissions.');
+            alert("{{ languages[selected_language_code]['alert_errorAccessingCamera'] if selected_language_code and languages[selected_language_code].alert_errorAccessingCamera else 'Could not access camera. Please check browser permissions.' }}");
             startCameraButton.disabled = false;
             stopCameraButton.disabled = true;
             validateFormAndEnableVerify();
@@ -1030,16 +1160,16 @@
     async function verifyPhoto() {
         if (isVerified) return;
         if (!areDetailsSelected()) {
-            alert('Please select all details first (Society, Tower, Floor, etc.).');
+            alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please select all details first (Society, Tower, Floor, etc.).' }}");
             return;
         }
         const photoDataUrl = captureFrame();
         if (!photoDataUrl) {
-            alert('No photo captured. Please start the camera first.');
+            alert("{{ languages[selected_language_code]['alert_noPhotoCaptured'] if selected_language_code and languages[selected_language_code].alert_noPhotoCaptured else 'No photo captured. Please start the camera first.' }}");
             return;
         }
 
-        showGlobalOverlay("Verifying face...");
+        showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingFace'] if selected_language_code and languages[selected_language_code].message_verifyingFace else 'Verifying face...' }}");
         verifyPhotoButton.disabled = true;
 
         // Build dynamic payload
@@ -1074,25 +1204,25 @@
                 hideGlobalOverlay();
                 
                 const isCheckMode = document.getElementById('mode_check').checked;
-                const timestamp = data.voted_at; 
+                const timestamp = data.voted_at;
+                const userId = getUserId(); // Get the ID to display
 
                 if (isCheckMode) {
                     if (timestamp) {
                         const proofMessage = `
-                            Vote Record Found:
-                            --------------------
-                            Last Voted On: ${timestamp}
+                            {{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}
                         `;
                         alert(proofMessage);
                     } else {
-                        alert("No voting record found.");
+                        alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
                     }
                 } else {
                     // User wants to VOTE
                     if (timestamp) {
-                        alert("You have already voted.");
+                        // Display the dedicated HTML section instead of an alert
+                        handleAlreadyVoted(userId);
                     } else {
-                        showGlobalOverlay("Verification Successful. Loading ballot...");
+                        showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
                         setTimeout(() => { 
                             window.location.replace(data.redirect_url); 
                         }, 1500);
@@ -1100,19 +1230,73 @@
                 }
             } else {
                 hideGlobalOverlay();
-                alert(data.message || "Verification failed.");
+                alert(data.message || "{{ languages[selected_language_code]['alert_verificationFailed'] if selected_language_code and languages[selected_language_code].alert_verificationFailed else 'Verification failed.' }}");
             }
             // --- END OF NEW LOGIC ---
 
         } catch (error) {
             hideGlobalOverlay();
             console.error('Photo verification error:', error);
-            alert('An error occurred during photo verification.');
+            alert("{{ languages[selected_language_code]['alert_errorPhotoVerification'] if selected_language_code and languages[selected_language_code].alert_errorPhotoVerification else 'An error occurred during photo verification.' }}");
         } finally {
             if (!isVerified) verifyPhotoButton.disabled = false;
         }
     }
- 
+
+    /**
+     * Handles the logic for resetting the user's secret code.
+     */
+    async function resetSecretCode() {
+        if (!validateNewCode()) {
+            alert("New codes do not match or are empty.");
+            return;
+        }
+
+        const newCode = newSecretCodeInput.value.trim();
+        const confirmCode = confirmNewSecretCodeInput.value.trim();
+        const userId = getUserId(); 
+        
+        if (!userId) {
+            alert("Error: Could not determine user ID for reset.");
+            return;
+        }
+
+        submitNewCodeButton.disabled = true;
+        showGlobalOverlay("{{ languages[selected_language_code]['message_resettingCode'] if selected_language_code and languages[selected_language_code].message_resettingCode else 'Resetting code...' }}");
+
+        try {
+            const response = await fetch('/api/reset_code', { // <-- New API endpoint required
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    new_code: newCode,
+                    confirm_code: confirmCode
+                })
+            });
+
+            const data = await response.json();
+            hideGlobalOverlay();
+
+            if (data.success) {
+                hideResetDialog();
+                displayMessage('success', data.message || "Code reset successfully! Please log in with your new code.", 5000);
+                // Clear the main secret code input to force re-entry
+                secretCodeInput.value = ''; 
+                validateFormAndEnableVerify();
+            } else {
+                displayMessage('error', data.message || "Code reset failed.", 5000);
+            }
+
+        } catch (error) {
+            console.error('Code reset error:', error);
+            hideGlobalOverlay();
+            displayMessage('error', "{{ languages[selected_language_code]['alert_errorResetCode'] if selected_language_code and languages[selected_language_code].alert_errorResetCode else 'A server error occurred during code reset.' }}", 5000);
+        } finally {
+            submitNewCodeButton.disabled = false;
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
     
         // ✅ CRITICAL FIX: Forces a fresh page load when user navigates back (BFcache prevention).
@@ -1129,7 +1313,8 @@
 
         // --- Listen for society input blur ---
         societyInput.addEventListener('blur', fetchSocietyDetails);
-        societyInput.addEventListener('keyup', (event) => { 
+        document.getElementById('validateSocietyBtn').addEventListener('click', fetchSocietyDetails); // Added listener for button
+        societyInput.addEventListener('keyup', (event) => {
             if (event.key === 'Enter') {
                 societyInput.blur();
             }
@@ -1181,11 +1366,11 @@
         houseNumberSelect.addEventListener('change', validateFormAndEnableVerify);
         flatNoLanesSelect.addEventListener('change', validateFormAndEnableVerify);
 
-        // --- VERIFICATION BUTTON LISTENERS ---
+        // --- VERIFICATION BUTTON LISTENERS (MODIFIED) ---
 
         submitSecretCodeButton.addEventListener('click', async () => {
             if (!areDetailsSelected() || !secretCodeInput.value) {
-                alert('Error: All fields are required.');
+                alert("{{ languages[selected_language_code]['alert_selectDetailsAndCode'] if selected_language_code and languages[selected_language_code].alert_selectDetailsAndCode else 'Error: All fields are required.' }}");
                 return;
             }
 
@@ -1194,7 +1379,8 @@
                 secret_code: secretCodeInput.value,
                 mode: document.getElementById('mode_check').checked ? 'check' : 'vote'
             };
- 
+
+            // Build payload based on community type (same as before)
             if (currentCommunityType === 'apartment') {
                 let flatValue = flatIdSelect.value;
                 if (flatValue.length === 3) flatValue = "0" + flatValue;
@@ -1207,64 +1393,72 @@
                 payload.flat = flatNoLanesSelect.value;
             }
 
-            showGlobalOverlay("Verifying...");
+            showGlobalOverlay("{{ languages[selected_language_code]['message_verifyingCode'] if selected_language_code and languages[selected_language_code].message_verifyingCode else 'Verifying...' }}");
+            submitSecretCodeButton.disabled = true; 
+            
             try {
                 const response = await fetch('/api/verify_code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const data = await response.json(); 
+                const data = await response.json();
+                hideGlobalOverlay();
 
-                // --- THIS IS THE NEW, CORRECT LOGIC ---
                 if (data.success) {
-                    hideGlobalOverlay();
                     
+                    if (data.needs_reset) { 
+                        showResetDialog();
+                        secretCodeInput.value = ''; 
+                        return; 
+                    }
+
                     const isCheckMode = document.getElementById('mode_check').checked;
-                    const timestamp = data.voted_at; 
+                    const timestamp = data.voted_at;
+                    const userId = getUserId(); 
 
                     if (isCheckMode) {
+                        // Logic for Check Mode
                         if (timestamp) {
-                            const proofMessage = `
-                                Vote Record Found:
-                                --------------------
-                                Last Voted On: ${timestamp}
-                            `;
-                            alert(proofMessage);
+                            alert(`{{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}`);
                         } else {
-                            alert("No voting record found.");
+                            alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
                         }
                     } else {
                         // User wants to VOTE
                         if (timestamp) {
-                            alert("You have already voted.");
+                            // *** CRITICAL FIX: Trigger non-disruptive 'Already Voted' message ***
+                            handleAlreadyVoted(userId);
+                            // Do not redirect to the ballot page (data.redirect_url)
                         } else {
-                            showGlobalOverlay("Verification Successful. Loading ballot...");
+                            // User is verified and hasn't voted. Proceed to ballot.
+                            showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
                             setTimeout(() => { 
                                 window.location.replace(data.redirect_url); 
                             }, 1500);
                         }
                     }
                 } else {
-                    hideGlobalOverlay();
                     alert(data.message);
                 }
-                // --- END OF NEW LOGIC ---
 
             } catch (err) {
                 console.error("Secret code verification error:", err);
                 hideGlobalOverlay();
-                alert('A server error occurred during verification.');
+                alert("{{ languages[selected_language_code]['alert_errorSecretCodeVerification'] if selected_language_code and languages[selected_language_code].alert_errorSecretCodeVerification else 'A server error occurred during verification.' }}");
+            } finally {
+                submitSecretCodeButton.disabled = false; 
+                validateFormAndEnableVerify();
             }
         });
 
         photoVerifyBtn.addEventListener('click', () => {
             if (areDetailsSelected()) { switchVerificationMethod('photo'); } 
-            else { alert('Please enter society and select all details first.'); }
+            else { alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please enter society and select all details first.' }}"); }
         });
         secretCodeVerifyBtn.addEventListener('click', () => {
             if (areDetailsSelected()) { switchVerificationMethod('secret_code'); } 
-            else { alert('Please enter society and select all details first.'); }
+            else { alert("{{ languages[selected_language_code]['alert_selectDetailsFirst'] if selected_language_code and languages[selected_language_code].alert_selectDetailsFirst else 'Please enter society and select all details first.' }}"); }
         });
 
         secretCodeInput.addEventListener('input', validateFormAndEnableVerify);
@@ -1272,7 +1466,13 @@
         startCameraButton.addEventListener('click', startCamera);
         stopCameraButton.addEventListener('click', stopCamera);
         verifyPhotoButton.addEventListener('click', verifyPhoto);
-    }); 
+
+        // --- NEW DIALOG LISTENERS ---
+        newSecretCodeInput.addEventListener('input', validateNewCode);
+        confirmNewSecretCodeInput.addEventListener('input', validateNewCode);
+        submitNewCodeButton.addEventListener('click', resetSecretCode);
+        // -----------------------------
+    });
 
     // Prevent back-button caching issues
     window.onload = function () {
@@ -1302,4 +1502,4 @@
     </a>
   </footer>
 </body>
-</html> 
+</html>
