@@ -1,5 +1,7 @@
-import psycopg2, psycopg2.extras, os, json, traceback
+import psycopg2, psycopg2.extras, os, json
 from flask import Flask, jsonify, request, render_template, session, redirect, url_for, flash, send_from_directory, make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import generate_password_hash, check_password_hash # 🚨 SECURITY FIX
 from datetime import datetime
 import pytz
 from language_data import languages
@@ -12,35 +14,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_host=1, x_prefix=1) # 🚨 DEPLOYMENT FIX
 app.secret_key = os.getenv("FLASK_VOTER_SECRET_KEY", "a_secret_key_for_voter_sessions")
+app.config['SESSION_COOKIE_SECURE'] = True # 🚨 SECURE COOKIE FIX
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 IST = pytz.timezone('Asia/Kolkata')
 UTC = pytz.utc
 
-# --- CODE COMPARISON FUNCTION (using direct string compare as requested) ---
-def compare_codes(entered_code, stored_code):
-    """Performs direct string comparison for code validation."""
-    if stored_code is None:
-        return False
-    return entered_code == stored_code
+# --- CODE COMPARISON FUNCTION: REMOVED (Replaced by check_password_hash) ---
 
 # --- DB helper ---
 def get_db():
-    """Establishes a connection to the PostgreSQL database using environment variables, 
-    including SSL mode for cloud services like Neon."""
+    """Establishes a connection to the PostgreSQL database using .env credentials."""
     try:
         conn = psycopg2.connect(
-            # 🚨 FIX: Using the correct ENV variable name (DB_NAME)
+            # 🚨 FIX: Using DB_NAME for consistency and passing SSL mode
             dbname=os.getenv("DB_NAME"),
             user=os.getenv("DB_USER"),
             password=os.getenv("DB_PASSWORD"),
             host=os.getenv("DB_HOST"),
             port=os.getenv("DB_PORT"),
-            # 🚨 CRITICAL FIX: Add sslmode='require' here
-            sslmode='require' 
+            sslmode='require' # 🚨 CRITICAL SSL FIX
         )
         return conn
     except psycopg2.OperationalError as e:
         app.logger.error(f"Error connecting to PostgreSQL database: {e}")
+        return None
+    except Exception as e:
+        app.logger.error(f"General DB connection error: {e}")
         return None
     
 # --- Utility: numeric sort ---
@@ -229,15 +230,14 @@ def get_society_details():
                 })
 
     except Exception as e:
-        app.logger.error(f"Error get_society_details: {e}")
-        traceback.print_exc()
+        app.logger.error(f"Error get_society_details: {e}", exc_info=True)
         return jsonify({"success": False, "message": "Server error fetching society details."}), 500
 
     finally:
         if conn:
             conn.close()
 
-# --- Verification: Secret Code (MODIFIED) ---
+# --- Verification: Secret Code (MODIFIED for Hashing) ---
 @app.route("/api/verify_code", methods=["POST"])
 def verify_code():
     data = request.get_json()
@@ -268,8 +268,7 @@ def verify_code():
             if not sched or not sched['start_time'] or not sched['end_time']:
                 return jsonify({"success": False, "message": "Voting schedule not set"}), 403
 
-            # 2. Fetch Household Record using address components (NOT the code)
-            # Fetch both secret_code and reset_code columns
+            # 2. Fetch Household Record using address components
             query = "SELECT id, secret_code, reset_code, is_admin_blocked, is_vote_allowed, voted_in_cycle, voted_at FROM households WHERE " + " AND ".join(where_clauses)
             cur.execute(query, tuple(params))
             h = cur.fetchone()
@@ -280,33 +279,38 @@ def verify_code():
             voter_secret_code = h.get('secret_code')
             voter_reset_code = h.get('reset_code')
             
-            # --- TIERED CODE VALIDATION LOGIC ---
-
+            # --- TIERED CODE VALIDATION LOGIC (NOW USING HASHING) ---
             is_valid_code = False
             is_reset_required = False
+            should_nullify_secret_code = False 
             
             # Check 1: Mandatory Reset Case (secret_code set, reset_code is NULL)
             if voter_secret_code and voter_reset_code is None:
-                if compare_codes(entered_code, voter_secret_code):
+                # 🚨 SECURITY FIX: Check entered code against the stored HASH
+                if check_password_hash(voter_secret_code, entered_code):
                     is_reset_required = True
                     is_valid_code = True 
             
-            # Check 2: Verification using User-Set Reset Code (reset_code is primary)
+            # Check 2: Verification using User-Set Reset Code (reset_code is primary/permanent)
             elif voter_reset_code:
-                if compare_codes(entered_code, voter_reset_code):
+                # 🚨 SECURITY FIX: Check entered code against the stored HASH
+                if check_password_hash(voter_reset_code, entered_code):
                     is_valid_code = True
             
-            # Check 3: Fallback to Admin Secret Code (Only if no reset_code and we didn't hit case 1)
+            # Check 3: Fallback to Admin/Mobile Secret Code (Used for one-time entry)
             elif voter_secret_code:
-                 if compare_codes(entered_code, voter_secret_code):
+                # 🚨 SECURITY FIX: Check entered code against the stored HASH
+                if check_password_hash(voter_secret_code, entered_code):
                     is_valid_code = True
+                    # Mark the temporary secret_code for immediate nullification after successful use
+                    should_nullify_secret_code = True
             
             
             if not is_valid_code:
                 return jsonify({"success": False, "message": "Invalid code."}), 410
 
             if is_reset_required:
-                # Code verified, but reset is mandatory. Tell JS to show the dialog.
+                # Code verified, but reset is mandatory.
                 return jsonify({"success": True, "needs_reset": True, "message": "Code reset required."})
 
             # --- END TIERED CODE VALIDATION LOGIC ---
@@ -358,7 +362,14 @@ def verify_code():
                     })
 
             # 5. Success Response
-            # This is the main success path (Code valid, ready to vote/check).
+            
+            # --- IMPLEMENT SINGLE-USE NULLIFICATION HERE ---
+            if should_nullify_secret_code:
+                # Invalidate the one-time mobile code now that the user has successfully entered
+                cur.execute("UPDATE households SET secret_code = NULL WHERE id = %s", (h['id'],))
+                conn.commit() # Commit the token invalidation immediately
+            # --- END SINGLE-USE NULLIFICATION ---
+            
             session['household_id'] = h['id']
             session['society_name'] = society
             
@@ -370,13 +381,14 @@ def verify_code():
             })
 
     except Exception as e:
+        if conn: conn.rollback()
         app.logger.error(f"Verify code error: {e}", exc_info=True)
         return jsonify({"success": False, "message": "Server error: " + str(e)}), 500
     finally:
         if conn:
             conn.close()
-
-# --- New API: Reset Code ---
+            
+# --- New API: Reset Code (MODIFIED for Hashing) ---
 @app.route('/api/reset_code', methods=['POST'])
 def reset_code():
     data = request.get_json()
@@ -410,20 +422,23 @@ def reset_code():
         params = [society]
 
         if len(parts) == 4: # Apartment (society-tower-floor-flat) -> Use tower and flat
-             where_clauses.extend(["tower=%s", "flat=%s"])
-             params.extend([parts[1], parts[3]]) 
+            where_clauses.extend(["tower=%s", "flat=%s"])
+            params.extend([parts[1], parts[3]]) 
         elif len(parts) == 3: # Individual lanes (society-lane-house)
-             where_clauses.extend(["lane=%s", "house_number=%s"])
-             params.extend([parts[1], parts[2]]) 
+            where_clauses.extend(["lane=%s", "house_number=%s"])
+            params.extend([parts[1], parts[2]]) 
         elif len(parts) == 2: # Individual no lanes (society-flat)
-             where_clauses.append("flat=%s")
-             params.extend([parts[1]])
+            where_clauses.append("flat=%s")
+            params.extend([parts[1]])
         else:
-             return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
+            return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
         
-        # Update the database: Set the new plain code into 'reset_code'
+        # 🚨 SECURITY FIX: Hash the new code before storing it
+        hashed_code = generate_password_hash(new_code)
+        
+        # Update the database: Set the new hashed code into 'reset_code'
         update_query = "UPDATE households SET reset_code=%s WHERE " + " AND ".join(where_clauses)
-        update_params = [new_code] + params # New code is stored in plaintext
+        update_params = [hashed_code] + params # Use the HASHED code
         
         cur = conn.cursor()
         cur.execute(update_query, tuple(update_params))
@@ -447,61 +462,7 @@ def reset_code():
 # --- Verification: Face ---
 @app.route("/api/verify_face", methods=["POST"])
 def verify_face():
-#   data=request.get_json()
-#   society=data.get('society'); tower, flat, lane, house = data.get('tower'), data.get('flat'), data.get('lane'), data.get('house')
-#   image_data=data.get('image_data')
-#   if not society or not image_data: return jsonify({"verified":False,"message":"Society and image required"}),400
-#   conn=get_db()
-#   if not conn: return jsonify({"verified":False,"message":"DB connection error"}),500
-#   try:
-#       with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-#           # Voting schedule check
-#           cur.execute("SELECT start_time,end_time FROM voting_schedule WHERE society_name=%s",(society,))
-#           sched=cur.fetchone()
-#           start_time=datetime.fromisoformat(sched['start_time'].replace('Z','+00:00'))
-#           end_time=datetime.fromisoformat(sched['end_time'].replace('Z','+00:00'))
-#           if not (start_time<=datetime.now(pytz.utc)<end_time): return jsonify({"verified":False,"message":"Voting is closed"})
-#
-#           query="SELECT * FROM households WHERE society_name=%s AND face_recognition_image IS NOT NULL"
-#           params=[society]
-#           if tower and flat: query+=" AND tower=%s AND flat=%s"; params.extend([tower,flat])
-#           elif lane and house: query+=" AND tower=%s AND flat=%s"; params.extend([lane,house])
-#           elif flat: query+=" AND flat=%s"; params.extend([flat])
-#           elif not (tower or flat or lane or house): query+=" AND tower IS NULL AND flat IS NULL AND lane IS NULL AND house_number IS NULL"
-#           else: return jsonify({"verified":False,"message":"Incomplete household details"}),400
-#
-#           cur.execute(query,tuple(params))
-#           row=cur.fetchone()
-#           if not row: return jsonify({"verified":False,"message":"No face record found"})
-#           if row['voted_in_cycle']==1: return jsonify({"verified":False,"message":"Already voted"})
-#           if row['is_admin_blocked']: return jsonify({"verified":False,"message":"Blocked"})
-#           if not row['is_vote_allowed']: return jsonify({"verified":False,"message":"Voting not allowed"})
-#
-#           # Decode live image
-#           _,encoded=image_data.split(",",1) if "," in image_data else (None,image_data)
-#           live_np=np.array(Image.open(io.BytesIO(base64.b64decode(encoded))).convert('RGB'))
-#           live_emb=DeepFace.represent(img_path=live_np,model_name='Facenet',enforce_detection=True)[0]['embedding']
-#           stored_emb=json.loads(row['face_recognition_image'])
-#           verified=DeepFace.verify(img1_path=live_emb,img2_path=stored_emb,model_name='Facenet',distance_metric='cosine')['verified']
-#
-#           if verified:
-#               session['household_id']=row['id']
-#               session['society_name']=society
-#               proof_timestamp_str = None
-#               if row['voted_in_cycle'] == 1 and row['voted_at']:
-#                   voted_time_ist = row['voted_at'].astimezone(IST)
-#                   proof_timestamp_str = voted_time_ist.strftime('%d-%m-%Y %I:%M:%S %p %Z')
-#               return jsonify({"verified":True,"message":"Verification successful","redirect_url":url_for('ballot')})
-#           else:
-#               return jsonify({"verified":False,"message":"Face not recognized"})
-#
-#   except ValueError:
-#       return jsonify({"verified":False,"message":"No face detected"})
-#   except Exception as e:
-#       app.logger.error(f"Face verification error: {e}",exc_info=True)
-#       return jsonify({"verified":False,"message":"Server error"}),500
-#   finally:
-#       if conn: conn.close()
+    # Face verification logic is commented out/disabled.
     return jsonify({"verified": False, "message": "Face verification temporarily disabled"}), 200
 
 # --- Ballot page ---
@@ -562,9 +523,9 @@ def submit_vote():
 
             for c in selected:
                 cur.execute("""INSERT INTO votes (society_name,tower,contestant_name,is_archived,vote_count)
-                               VALUES (%s,%s,%s,%s,1)
-                               ON CONFLICT (society_name,tower,contestant_name,is_archived)
-                               DO UPDATE SET vote_count=votes.vote_count+1""",(society,tower,c,0))
+                                 VALUES (%s,%s,%s,%s,1)
+                                 ON CONFLICT (society_name,tower,contestant_name,is_archived)
+                                 DO UPDATE SET vote_count=votes.vote_count+1""",(society,tower,c,0))
             cur.execute("UPDATE settings SET voted_count=voted_count+1 WHERE society_name=%s",(society,))
             voted_timestamp = datetime.now(pytz.utc)
             cur.execute("UPDATE households SET voted_in_cycle=%s, voted_at=%s WHERE id=%s",(VOTED_FLAG, voted_timestamp, household_id))
@@ -580,4 +541,4 @@ def submit_vote():
 
 # --- Main ---
 if __name__=='__main__':
-    app.run(port=5001,debug=False)
+    app.run(port=5001,debug=False) 
