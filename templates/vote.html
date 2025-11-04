@@ -1407,6 +1407,7 @@
 
                 if (data.success) {
                     
+                    // 1. Handle Mandatory Code Reset
                     if (data.needs_reset) { 
                         showResetDialog();
                         secretCodeInput.value = ''; 
@@ -1414,33 +1415,55 @@
                     }
 
                     const isCheckMode = document.getElementById('mode_check').checked;
-                    const timestamp = data.voted_at;
+                    const timestamp = data.voted_at; // Timestamp is only returned if the user has already voted
                     const userId = getUserId(); 
+                    const redirectUrl = data.redirect_url; // Should be '/ballot'
 
                     if (isCheckMode) {
-                        // Logic for Check Mode
+                        // 2. Logic for Check Mode (No Redirect - just alerts)
                         if (timestamp) {
                             alert(`{{ languages[selected_language_code]['proof_voteRecordFound'] if selected_language_code and languages[selected_language_code].proof_voteRecordFound else 'Vote Record Found: -------------------- Last Voted On: ' }} ${timestamp}`);
                         } else {
                             alert("{{ languages[selected_language_code]['alert_noVotingRecordFound'] if selected_language_code and languages[selected_language_code].alert_noVotingRecordFound else 'No voting record found.' }}");
                         }
-                    } else {
-                        // User wants to VOTE
+                    } 
+                    
+                    else { 
+                        // --- User is in VOTE Mode ---
                         if (timestamp) {
-                            // *** CRITICAL FIX: Trigger non-disruptive 'Already Voted' message ***
-                            handleAlreadyVoted(userId);
-                            // Do not redirect to the ballot page (data.redirect_url)
-                        } else {
-                            // User is verified and hasn't voted. Proceed to ballot.
-                            showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
+                            // 3. Already Voted Case: Show proof, then redirect for session cleanup.
+                            
+                            // Check if handleAlreadyVoted is defined before calling (prevents stopping the script)
+                            if (typeof handleAlreadyVoted === 'function') {
+                                handleAlreadyVoted(userId); 
+                            } else {
+                                // Fallback alert if the function is missing
+                                alert(`{{ languages[selected_language_code]['alreadyVotedTitle'] }} at: ${timestamp}. Redirecting...`);
+                            }
+
+                            // CRITICAL FIX: Force the redirect to /ballot after a delay for cleanup
                             setTimeout(() => { 
-                                window.location.replace(data.redirect_url); 
+                                // This sends the user to the Flask /ballot route, 
+                                // which then clears the session and redirects to /select_language.
+                                window.location.replace(redirectUrl); 
+                            }, 3000); // Wait 3 seconds to let the user read the proof message
+
+                        } else {
+                            // 4. READY TO VOTE CASE: User is verified and hasn't voted. Proceed to ballot.
+                            showGlobalOverlay("{{ languages[selected_language_code]['message_verificationSuccessLoadingBallot'] if selected_language_code and languages[selected_language_code].message_verificationSuccessLoadingBallot else 'Verification Successful. Loading ballot...' }}");
+                            
+                            // CRITICAL FIX: The redirect to the ballot page for new voters
+                            setTimeout(() => { 
+                                window.location.replace(redirectUrl); 
                             }, 1500);
                         }
                     }
-                } else {
+                } 
+
+                else {
+                    // Verification Failed (data.success is false)
                     alert(data.message);
-                }
+                }    
 
             } catch (err) {
                 console.error("Secret code verification error:", err);
