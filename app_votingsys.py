@@ -13,47 +13,49 @@ import hashlib, secrets
 # --- END MODIFIED IMPORTS ---
 
 
-# --- HASHING UTILITIES (NEW) ---
+# --- HASHING UTILITIES (FIXED FOR UNSALTED SHA-256 COMPATIBILITY) ---
+# NOTE: This matches the simpler hashing mechanism of app_adminsys.py.
 
 def hash_sha256(password, salt=None):
     """
-    Generates an SHA-256 hash of the password combined with a salt.
-    Returns the hash in 'salt$hash' format.
+    Generates an UNSALTED SHA-256 hash of the password.
+    Returns the hash in 'sha256$hash' format, matching app_adminsys.py.
+    (The 'salt' parameter is ignored for compatibility.)
     """
-    # 16 bytes (32 hex chars) is used as a consistent salt length
-    if salt is None:
-        salt = secrets.token_hex(16)
+    # Hash the raw password directly (UNSALTED)
+    hashed = hashlib.sha256(password.encode('utf-8')).hexdigest()
     
-    # Combine salt and password, then encode to bytes for hashing
-    salted_password = (salt + password).encode('utf-8')
-    
-    # Perform a single round of SHA-256 hashing
-    hashed = hashlib.sha256(salted_password).hexdigest()
-    
-    # Return the salt and hash, separated by $
-    return f"{salt}${hashed}"
+    # Return the hash prefixed with 'sha256$'
+    return f"sha256${hashed}"
 
 
-# --- CODE COMPARISON FUNCTION (MODIFIED) ---
+# --- CODE COMPARISON FUNCTION (FIXED FOR UNSALTED SHA-256 COMPATIBILITY) ---
 def compare_codes(entered_code, stored_hash):
     """
-    Performs SHA-256 hash comparison for code validation.
-    The stored_hash must be in 'salt$hash' format.
+    Performs UNSALTED SHA-256 hash comparison for code validation.
+    The stored_hash must be in 'sha256$hash' format.
     """
     if not stored_hash or '$' not in stored_hash:
-        return False
-    
+        return False 
+
     try:
-        # Extract the salt and the stored hash value
-        salt, stored_hashed_password = stored_hash.split('$', 1)
-    except ValueError:
+        # We only care about the hash value itself
+        prefix, stored_hash_value = stored_hash.split('$', 1)
+        
+        # Check if the prefix matches what we expect
+        if prefix != 'sha256':
+             return False
+        
+        # Re-hash the raw code using the admin app's unsalted method
+        rehashed_code = hashlib.sha256(entered_code.encode('utf-8')).hexdigest()
+        
+        # Compare the newly calculated hash with the stored hash value
+        # Use constant-time comparison for security against timing attacks
+        return secrets.compare_digest(rehashed_code, stored_hash_value)
+
+    except Exception:
         return False
 
-    # Hash the entered code using the stored salt
-    entered_hashed_password = hash_sha256(entered_code, salt).split('$')[1]
-    
-    # Use constant-time comparison for security against timing attacks
-    return secrets.compare_digest(entered_hashed_password, stored_hashed_password)
 
 # --- Initialization ---
 load_dotenv()
@@ -457,7 +459,7 @@ def reset_code():
             return jsonify({"success": False, "message": "Invalid user identifier format."}), 400
         
         # --- HASH THE NEW CODE BEFORE STORING (MODIFIED) ---
-        # Generate new SHA-256 hash with a random salt
+        # Generate new SHA-256 hash (UNSALTED for compatibility)
         hashed_new_code = hash_sha256(new_code)
         
         # Update the database: Set the new HASHED code into 'reset_code'
